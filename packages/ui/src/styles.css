@@ -81,8 +81,7 @@ main > * + *, #audit-panel > * + *, .card > * + * { margin-top: 16px; }
 .reasons { display: grid; gap: 8px; }
 .reason, .chain { display: flex; gap: 12px; padding: 12px 16px; border-radius: 8px; border: 1px solid currentColor; }
 .reason .icon, .chain .icon { margin-top: 4px; }
-.reason strong { margin-right: 8px; }
-.reason code { font-size: 0.75rem; }
+.reason code { display: block; font-size: 0.75rem; }
 .reason p, .chain p { color: var(--ink); font-size: 0.9375rem; }
 
 .lines li, .alternatives li, .rows li, .events li, .trace li { padding-block: 12px; border-bottom: 1px solid var(--line); }
