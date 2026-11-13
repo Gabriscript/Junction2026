@@ -1,1 +1,5 @@
 export * from './bindings.js';
+export * from './config.js';
+export * from './catalogue/project.js';
+export * from './catalogue/store.js';
+export * from './catalogue/allergens.js';
