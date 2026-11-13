@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { StructuredNeed } from '../src/contract';
-import { createProvider, extractNeed, ruleParseNeed, type LLMProvider } from '../src/llm';
+import { createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from '../src/llm';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';
+const BUTTER = '5 kg butter by 2026-11-20'; // the request that validNeed answers
 const none = createProvider({ LLM_PROVIDER: 'none' });
 
 const validNeed = {
@@ -75,7 +76,7 @@ describe('LLM output handling', () => {
   const fake = (out: () => unknown): LLMProvider => ({ name: 'fake', parseNeed: async () => out() });
 
   it('uses valid LLM output', async () => {
-    const result = await extractNeed(DEMO, fake(() => validNeed), NOW);
+    const result = await extractNeed(BUTTER, fake(() => validNeed), NOW);
     expect(result).toMatchObject({ provider: 'fake', usedFallback: false, need: validNeed });
   });
 
@@ -85,6 +86,24 @@ describe('LLM output handling', () => {
     expect(result.provider).toBe('none');
     expect(result.fallbackReason).toBeTruthy();
     expect(result.need).toMatchObject({ quantity: 1000, unit: 'L', deliveryBy: '2026-11-16' });
+  });
+
+  it('never lets LLM output drop a constraint or change a quantity the rules found', async () => {
+    const text = '200 croissants without nuts, gluten free, by 2026-11-20';
+    const lenient = { quantity: 2000, unit: 'PCS', productQuery: 'croissants', attributes: ['vegan'], freeFromAllergens: ['egg'], deliveryBy: '2026-11-20' };
+    const result = await extractNeed(text, fake(() => lenient), NOW);
+    expect(result.usedFallback).toBe(false);
+    expect(result.need.attributes.sort()).toEqual(['gluten-free', 'vegan']);
+    expect(result.need.freeFromAllergens.sort()).toEqual(['egg', 'nuts']);
+    expect(result.need.quantity).toBe(200);
+    expect(result.notes?.join(' ')).toContain('quantity');
+  });
+
+  it('rejects quantities above MAX_QUANTITY from the LLM and from the rules', async () => {
+    const huge = await extractNeed(BUTTER, fake(() => ({ ...validNeed, quantity: MAX_QUANTITY + 1 })), NOW);
+    expect(huge).toMatchObject({ usedFallback: true, need: { quantity: 5 } });
+    expect((await extractNeed(`${MAX_QUANTITY} kg butter`, none, NOW)).need.quantity).toBe(MAX_QUANTITY);
+    await expect(extractNeed(`${MAX_QUANTITY + 1} kg butter`, none, NOW)).rejects.toThrow(/quantity/i);
   });
 
   it('falls back when the LLM call throws', async () => {
@@ -112,7 +131,7 @@ describe('createProvider', () => {
       { LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'test-key', OPENROUTER_MODEL: 'some/model' },
       fetchImpl as typeof fetch,
     );
-    const result = await extractNeed(DEMO, llm, NOW);
+    const result = await extractNeed(BUTTER, llm, NOW);
     expect(result).toMatchObject({ provider: 'openrouter', usedFallback: false, need: validNeed });
     expect(calls[0].url).toContain('openrouter.ai');
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
@@ -143,7 +162,7 @@ describe('createProvider', () => {
       });
     };
     const llm = createProvider({ LLM_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'test-key' }, fetchImpl as typeof fetch);
-    const result = await extractNeed(DEMO, llm, NOW);
+    const result = await extractNeed(BUTTER, llm, NOW);
     expect(result).toMatchObject({ provider: 'anthropic', usedFallback: false, need: validNeed });
     expect(body.model).toBe('claude-haiku-5-5');
   });

@@ -12,6 +12,7 @@ export interface NeedExtraction {
   provider: string; // provider whose output was used
   usedFallback: boolean;
   fallbackReason?: string;
+  notes?: string[]; // corrections made to LLM output, for the trace
 }
 
 // ---- dates (all relative to the injected "now") ----
@@ -192,17 +193,57 @@ export function createProvider(env: Env = process.env, fetchImpl: typeof fetch =
   }
 }
 
+export const MAX_QUANTITY = 100_000;
+
+const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
+
+function capped(need: StructuredNeed): StructuredNeed {
+  if (need.quantity > MAX_QUANTITY) throw new Error(`Quantity ${need.quantity} is above the limit of ${MAX_QUANTITY}`);
+  return need;
+}
+
+/**
+ * A schema-valid LLM answer can still be wrong or steered by the request text. The rules read
+ * the same text: constraints they find are never dropped, and their quantity wins a disagreement.
+ */
+function reconcile(llmNeed: StructuredNeed, text: string, now: Date): { need: StructuredNeed; notes: string[] } {
+  let rules: StructuredNeed;
+  try {
+    rules = ruleParseNeed(text, now);
+  } catch {
+    return { need: llmNeed, notes: [] }; // the rules found nothing to compare with
+  }
+  const notes: string[] = [];
+  const need = {
+    ...llmNeed,
+    attributes: union(llmNeed.attributes, rules.attributes),
+    freeFromAllergens: union(llmNeed.freeFromAllergens, rules.freeFromAllergens),
+  };
+  if (rules.quantity !== llmNeed.quantity || rules.unit !== llmNeed.unit) {
+    notes.push(`quantity ${llmNeed.quantity} ${llmNeed.unit} replaced by the rule parser's ${rules.quantity} ${rules.unit}`);
+    need.quantity = rules.quantity;
+    need.unit = rules.unit;
+  }
+  return { need, notes };
+}
+
 /** Free text → validated StructuredNeed. Invalid or failed LLM output falls back to the rule parser. */
 export async function extractNeed(text: string, llm: LLMProvider, now: Date): Promise<NeedExtraction> {
   let fallbackReason: string;
   try {
     const parsed = StructuredNeed.safeParse(await llm.parseNeed(text, now));
-    if (parsed.success) return { need: parsed.data, provider: llm.name, usedFallback: false };
-    fallbackReason = `invalid ${llm.name} output: ${parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`;
+    if (parsed.success && parsed.data.quantity <= MAX_QUANTITY) {
+      if (llm.name === 'none') return { need: parsed.data, provider: llm.name, usedFallback: false };
+      const { need, notes } = reconcile(parsed.data, text, now);
+      return { need: capped(need), provider: llm.name, usedFallback: false, notes };
+    }
+    fallbackReason = parsed.success
+      ? `invalid ${llm.name} output: quantity ${parsed.data.quantity} is above the limit of ${MAX_QUANTITY}`
+      : `invalid ${llm.name} output: ${parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`;
   } catch (error) {
     if (llm.name === 'none') throw error; // nothing left to fall back to
     fallbackReason = `${llm.name} call failed: ${error instanceof Error ? error.message : String(error)}`;
   }
   if (llm.name === 'none') throw new Error(fallbackReason);
-  return { need: ruleParseNeed(text, now), provider: 'none', usedFallback: true, fallbackReason };
+  return { need: capped(ruleParseNeed(text, now)), provider: 'none', usedFallback: true, fallbackReason };
 }

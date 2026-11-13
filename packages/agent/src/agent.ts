@@ -84,7 +84,8 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     'parse_need',
     text,
     `${JSON.stringify(need)} via ${extraction.provider}` +
-      (extraction.usedFallback ? ` (fallback to rule parser: ${extraction.fallbackReason})` : ''),
+      (extraction.usedFallback ? ` (fallback to rule parser: ${extraction.fallbackReason})` : '') +
+      (extraction.notes?.length ? ` (${extraction.notes.join('; ')})` : ''),
   );
 
   // the agent places no order: every reason found so far explains why
