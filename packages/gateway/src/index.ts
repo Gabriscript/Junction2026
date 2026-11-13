@@ -6,3 +6,5 @@ export * from './catalogue/allergens.js';
 export * from './aimo/client.js';
 export * from './trust/keys.js';
 export * from './trust/offers.js';
+export * from './policy/evaluate.js';
+export * from './audit/store.js';
