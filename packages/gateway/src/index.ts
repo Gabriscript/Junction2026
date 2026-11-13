@@ -8,3 +8,8 @@ export * from './trust/keys.js';
 export * from './trust/offers.js';
 export * from './policy/evaluate.js';
 export * from './audit/store.js';
+export * from './orders/store.js';
+export * from './service.js';
+export * from './http/server.js';
+export * from './mcp/server.js';
+export * from './bootstrap.js';
