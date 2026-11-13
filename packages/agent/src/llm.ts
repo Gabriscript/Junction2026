@@ -170,13 +170,16 @@ function jsonFromReply(reply: string): unknown {
   return JSON.parse(reply.slice(reply.indexOf('{'), reply.lastIndexOf('}') + 1));
 }
 
+// a kitchen is waiting: a slow model must not hang the run, the rule parser takes over
+const LLM_TIMEOUT_MS = 15_000;
+
 const noneProvider: LLMProvider = {
   name: 'none',
   parseNeed: async (text, now) => ruleParseNeed(text, now),
 };
 
 function anthropicProvider(apiKey: string, model: string, fetchImpl: typeof fetch): LLMProvider {
-  const client = new Anthropic({ apiKey, fetch: fetchImpl });
+  const client = new Anthropic({ apiKey, fetch: fetchImpl, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
   return {
     name: 'anthropic',
     async parseNeed(text, now) {
@@ -198,6 +201,7 @@ function openRouterProvider(apiKey: string, model: string, fetchImpl: typeof fet
       const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
         body: JSON.stringify({
           model,
           messages: [

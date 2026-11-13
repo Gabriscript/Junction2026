@@ -187,6 +187,31 @@ describe('createProvider', () => {
     expect((await extractNeed(DEMO, down, NOW)).usedFallback).toBe(true);
   });
 
+  it('LLM calls are bounded: a timeout falls back to the rule parser', async () => {
+    const timeout = () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    };
+
+    let signal: AbortSignal | null | undefined;
+    const openrouter = createProvider({ LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'test-key', OPENROUTER_MODEL: 'm' }, (async (_url: any, init: any) => {
+      signal = init.signal;
+      return timeout();
+    }) as typeof fetch);
+    const viaOpenRouter = await extractNeed(DEMO, openrouter, NOW);
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(viaOpenRouter).toMatchObject({ usedFallback: true, need: { quantity: 1000 } });
+    expect(viaOpenRouter.fallbackReason).toContain('timeout');
+
+    let calls = 0;
+    const anthropic = createProvider({ LLM_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'test-key' }, (async () => {
+      calls += 1;
+      return timeout();
+    }) as typeof fetch);
+    const viaAnthropic = await extractNeed(DEMO, anthropic, NOW);
+    expect(viaAnthropic).toMatchObject({ usedFallback: true, need: { quantity: 1000 } });
+    expect(calls).toBe(2); // one retry, not the SDK default of two
+  });
+
   it('anthropic: uses the default haiku model and parses the reply', async () => {
     let body: any;
     const fetchImpl = async (_url: any, init: any) => {
