@@ -7,7 +7,7 @@ export interface Offer {
   /** Quantity the offer covers, in `unit`. */
   quantity: number;
   unit: string;
-  /** EUR per unit, excluding VAT. */
+  /** Integer euro cents per unit, excluding VAT. */
   unitPrice: number;
   /** Fraction, e.g. 0.135 for 13.5 %. */
   vatRate: number;
@@ -72,7 +72,7 @@ export interface OrderLine {
 export interface Alternative {
   tier: 'good' | 'better' | 'best';
   title: string;
-  /** EUR excluding VAT. */
+  /** Integer euro cents, excluding VAT. */
   total: number;
   why: string;
   /** true for the option the agent put in the cart. */

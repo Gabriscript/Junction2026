@@ -23,7 +23,7 @@ export function Cart({ order }: { order: Order }) {
                 {quantity} × {offer.unit} ({packLabel}) at {eur(offer.unitPrice)} each
               </p>
               <p className="muted">
-                VAT {(offer.vatRate * 100).toLocaleString('en-FI')} %: {eur(net * offer.vatRate)}
+                VAT {(offer.vatRate * 100).toLocaleString('fi-FI')} %: {eur(Math.round(net * offer.vatRate))}
                 {', '}
                 {offer.quantityVerified ? 'stock verified' : 'terminal stock, quantity not verified'}
               </p>

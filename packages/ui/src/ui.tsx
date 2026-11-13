@@ -4,8 +4,9 @@ import type { GatewayApi } from './api';
 import type { Order, OrderStatus, ReasonCode } from './contract';
 import { REASONS } from './reasons';
 
-const eurFormat = new Intl.NumberFormat('en-FI', { style: 'currency', currency: 'EUR' });
-export const eur = (amount: number) => eurFormat.format(amount);
+const eurFormat = new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' });
+/** Money travels as integer euro cents; this is the only place it becomes "1 899,00 €". */
+export const eur = (cents: number) => eurFormat.format(cents / 100);
 
 export const time = (ts: string) =>
   new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -18,7 +19,7 @@ export function orderTotals(order: Order) {
   for (const line of order.lines) {
     const lineNet = line.quantity * line.signedOffer.offer.unitPrice;
     net += lineNet;
-    vat += lineNet * line.signedOffer.offer.vatRate;
+    vat += Math.round(lineNet * line.signedOffer.offer.vatRate);
   }
   return { net, vat, gross: net + vat };
 }

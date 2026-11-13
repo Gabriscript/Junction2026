@@ -26,7 +26,7 @@ const milk = signed({
   productId: 'p-milk-lf-12x1',
   productName: 'Lactose-free semi-skimmed milk 1 L',
   unit: 'case',
-  unitPrice: 13.8,
+  unitPrice: 1380,
   labels: ['Lactose-free'],
 });
 
@@ -35,7 +35,7 @@ const oats5 = signed({
   productId: 'p-oat-gf-5kg',
   productName: 'Gluten-free oat flakes 5 kg',
   unit: 'bag',
-  unitPrice: 21.5,
+  unitPrice: 2150,
   availableQuantity: 8,
   labels: ['Gluten-free'],
 });
@@ -45,7 +45,7 @@ const oats1 = signed({
   productId: 'p-oat-gf-1kg',
   productName: 'Gluten-free oat flakes 1 kg',
   unit: 'bag',
-  unitPrice: 4.9,
+  unitPrice: 490,
   availableQuantity: 999999,
   quantityVerified: false,
   labels: ['Gluten-free'],
@@ -100,21 +100,21 @@ export const hospitalOrder: Order = {
     {
       tier: 'good',
       title: 'Take only the 40 kg in stock',
-      total: 172,
+      total: 17200,
       why: 'Lowest cost and fully verified, but 20 kg short of the request.',
       chosen: false,
     },
     {
       tier: 'better',
       title: '40 kg oat flakes + 20 kg gluten-free buckwheat flakes',
-      total: 284,
+      total: 28400,
       why: 'Full quantity from verified stock, but buckwheat is a different grain and costs more.',
       chosen: false,
     },
     {
       tier: 'best',
       title: '40 kg in 5 kg bags + 20 kg in 1 kg bags',
-      total: 270,
+      total: 27000,
       why: 'Same product for the full 60 kg. The 1 kg bags come from a terminal, so their quantity is not verified.',
       chosen: true,
     },
@@ -136,13 +136,13 @@ export const rogueOrder: Order = {
   mandateId: null,
   requestText: '(no request text, order sent directly to the gateway)',
   createdAt: '2026-11-13T18:31:05Z',
-  lines: [{ signedOffer: signed({ ...milk.offer, unitPrice: 1.38 }), quantity: 84, packLabel: '12 x 1 L' }],
+  lines: [{ signedOffer: signed({ ...milk.offer, unitPrice: 138 }), quantity: 84, packLabel: '12 x 1 L' }],
   status: 'blocked',
   decision: {
     status: 'blocked',
     reasonCodes: ['OFFER_SIGNATURE_INVALID'],
     explanation:
-      'The order quotes 1.38 EUR per case, but the offer Aimo signed says 13.80 EUR. The signature does not match the changed price, so the gateway refused the order.',
+      'The order quotes 1,38 € per case, but the offer Aimo signed says 13,80 €. The signature does not match the changed price, so the gateway refused the order.',
   },
   alternatives: [],
   trace: [
