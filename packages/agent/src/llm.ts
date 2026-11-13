@@ -26,9 +26,13 @@ const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'frida
 
 // ---- rule-based parser (LLM_PROVIDER=none) ----
 
-const UNIT_WORDS: [RegExp, Unit][] = [
-  [/^(l|ltr|lit(re|er)s?)$/, 'L'],
-  [/^(kg|kilos?|kilograms?)$/, 'KG'],
+// unit word, contract unit, how many of the word make one contract unit
+const UNIT_WORDS: [RegExp, Unit, number][] = [
+  [/^(l|ltr|lit(re|er)s?)$/, 'L', 1],
+  [/^dl$/, 'L', 10],
+  [/^ml$/, 'L', 1000],
+  [/^(kg|kilos?|kilograms?)$/, 'KG', 1],
+  [/^(g|grams?)$/, 'KG', 1000],
 ];
 const ATTRIBUTES: [RegExp, string][] = [
   [/\blactose[- ]free\b/, 'lactose-free'],
@@ -41,15 +45,26 @@ const ALLERGEN = '(milk|eggs?|nuts?|peanuts?|soy|wheat|fish)';
 const ALLERGEN_PATTERNS = [new RegExp(`\\b${ALLERGEN}[- ]free\\b`, 'g'), new RegExp(`\\b(?:no|without)\\s+${ALLERGEN}\\b`, 'g')];
 const ALLERGEN_NAMES: Record<string, string> = { eggs: 'egg', nut: 'nuts', peanut: 'peanuts' };
 const DATE = new RegExp(
-  `\\b(?:(?:by|for|on|before|until)\\s+)?(?:next\\s+)?(\\d{4}-\\d{2}-\\d{2}|today|tomorrow|${WEEKDAYS.join('|')})\\b`,
+  `\\b(?:(?:by|for|on|before|until)\\s+)?(?:next\\s+)?(?:(\\d{4}-\\d{2}-\\d{2}|today|tomorrow|${WEEKDAYS.join('|')})\\b|(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})?(?!\\d))`,
 );
-const QUANTITY = /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(lit(?:re|er)s?|ltr|l|kilograms?|kilos?|kg|pieces?|pcs|units?)?\b/;
+const QUANTITY = /(\d{1,3}(?: \d{3})+(?!\d)|\d+)((?:[.,]\d+)*)\s*(lit(?:re|er)s?|ltr|l|kilograms?|kilos?|kg|grams?|g|ml|dl|pieces?|pcs|units?)?\b/;
 const STOPWORDS = new Set(
   'i we need needs want would like please of a an the some order to for by get us me can you send deliver delivered and with'.split(' '),
 );
 
-function resolveDate(word: string, now: Date): string {
+function resolveDate(match: RegExpExecArray, now: Date): string {
   const today = todayIso(now);
+  const [text, word, day, month, year] = match;
+  if (day && month) {
+    const inYear = (y: string | number) => `${y}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const thisYear = today.slice(0, 4);
+    // "5.12." without a year is the next time that day comes round
+    const date = year ? inYear(year) : inYear(thisYear) < today ? inYear(Number(thisYear) + 1) : inYear(thisYear);
+    const time = Date.parse(date);
+    if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== date) throw new Error(`"${text.trim()}" is not a calendar date`);
+    return date;
+  }
+  if (!word) throw new Error(`Could not read the date "${text.trim()}"`);
   if (/^\d/.test(word)) return word;
   if (word === 'today') return today;
   if (word === 'tomorrow') return addDays(today, 1);
@@ -58,13 +73,41 @@ function resolveDate(word: string, now: Date): string {
   return addDays(today, (WEEKDAYS.indexOf(word) - todayIndex + 7) % 7 || 7);
 }
 
+/**
+ * Reads English ("1,000.5") and Finnish ("1 000,5", "1.000,5") notation. A separator followed by
+ * exactly three digits groups thousands ("1.000" and "1,000" are both one thousand) unless the
+ * number starts with 0 ("0,500" is a half). Anything that fits neither notation throws: a wrong
+ * guess here is a wrong order.
+ */
+function parseNumber(integer: string, tail: string): number {
+  const spaced = integer.includes(' '); // "1 000": the spaces already group the thousands
+  const groups = [...tail.matchAll(/([.,])(\d+)/g)].map((match) => ({ separator: match[1], digits: match[2] ?? '' }));
+  const groupsThousands = (group: { digits: string }) => !spaced && group.digits.length === 3 && integer.length <= 3 && !integer.startsWith('0');
+  let whole = integer.replaceAll(' ', '');
+  let decimals = '';
+  const first = groups[0];
+  const last = groups.at(-1);
+  if (first && last) {
+    // the last group is a decimal part when it is the only group that does not group thousands
+    const leading = groups.length > 1 && last.separator !== first.separator ? groups.slice(0, -1) : groups;
+    if (groups.length === 1 && !groupsThousands(first)) decimals = first.digits;
+    else if (!leading.every((group) => group.separator === first.separator && groupsThousands(group))) {
+      throw new Error(`Ambiguous number "${integer}${tail}": write it without thousands separators`);
+    } else {
+      whole += leading.map((group) => group.digits).join('');
+      if (leading !== groups) decimals = last.digits;
+    }
+  }
+  return Number(decimals ? `${whole}.${decimals}` : whole);
+}
+
 /** Deterministic parser for the demo phrases. Throws when it finds no quantity or no product. */
 export function ruleParseNeed(text: string, now: Date): StructuredNeed {
-  let rest = text.toLowerCase();
+  let rest = text.toLowerCase().replace(/\s/g, ' '); // also turns the non-breaking spaces of "1 000" into plain ones
 
   // date first, so "2026-11-20" is not read as a quantity
   const date = DATE.exec(rest);
-  const deliveryBy = date ? resolveDate(date[1], now) : null;
+  const deliveryBy = date ? resolveDate(date, now) : null;
   if (date) rest = rest.replace(date[0], ' ');
 
   const freeFromAllergens: string[] = [];
@@ -87,7 +130,7 @@ export function ruleParseNeed(text: string, now: Date): StructuredNeed {
   if (!quantity) throw new Error('Could not find a quantity in the request');
   rest = rest.replace(quantity[0], ' ');
   const unitWord = quantity[3] ?? '';
-  const unit = UNIT_WORDS.find(([pattern]) => pattern.test(unitWord))?.[1] ?? 'PCS';
+  const [, unit, perUnit] = UNIT_WORDS.find(([pattern]) => pattern.test(unitWord)) ?? [undefined, 'PCS' as const, 1];
 
   const productQuery = rest
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
@@ -96,7 +139,7 @@ export function ruleParseNeed(text: string, now: Date): StructuredNeed {
     .join(' ');
 
   return StructuredNeed.parse({
-    quantity: Number(quantity[1].replaceAll(',', '') + (quantity[2] ?? '')),
+    quantity: parseNumber(quantity[1] ?? '', quantity[2] ?? '') / perUnit,
     unit,
     productQuery,
     attributes,
@@ -197,8 +240,17 @@ export const MAX_QUANTITY = 100_000;
 
 const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
 
-function capped(need: StructuredNeed): StructuredNeed {
-  if (need.quantity > MAX_QUANTITY) throw new Error(`Quantity ${need.quantity} is above the limit of ${MAX_QUANTITY}`);
+/** Why a schema-valid need must still not be acted on, if anything. */
+function needProblem(need: StructuredNeed, now: Date): string | undefined {
+  if (need.quantity > MAX_QUANTITY) return `quantity ${need.quantity} is above the limit of ${MAX_QUANTITY}`;
+  const today = todayIso(now);
+  if (need.deliveryBy && need.deliveryBy < today) return `delivery date ${need.deliveryBy} is before today (${today})`;
+  return undefined;
+}
+
+function checked(need: StructuredNeed, now: Date): StructuredNeed {
+  const problem = needProblem(need, now);
+  if (problem) throw new Error(`Cannot use this request: ${problem}`);
   return need;
 }
 
@@ -231,19 +283,20 @@ function reconcile(llmNeed: StructuredNeed, text: string, now: Date): { need: St
 export async function extractNeed(text: string, llm: LLMProvider, now: Date): Promise<NeedExtraction> {
   let fallbackReason: string;
   try {
-    const parsed = StructuredNeed.safeParse(await llm.parseNeed(text, now));
-    if (parsed.success && parsed.data.quantity <= MAX_QUANTITY) {
-      if (llm.name === 'none') return { need: parsed.data, provider: llm.name, usedFallback: false };
+    const output = await llm.parseNeed(text, now);
+    if (llm.name === 'none') return { need: checked(StructuredNeed.parse(output), now), provider: llm.name, usedFallback: false };
+    const parsed = StructuredNeed.safeParse(output);
+    const problem = parsed.success
+      ? needProblem(parsed.data, now)
+      : parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    if (parsed.success && !problem) {
       const { need, notes } = reconcile(parsed.data, text, now);
-      return { need: capped(need), provider: llm.name, usedFallback: false, notes };
+      return { need: checked(need, now), provider: llm.name, usedFallback: false, notes };
     }
-    fallbackReason = parsed.success
-      ? `invalid ${llm.name} output: quantity ${parsed.data.quantity} is above the limit of ${MAX_QUANTITY}`
-      : `invalid ${llm.name} output: ${parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`;
+    fallbackReason = `invalid ${llm.name} output: ${problem}`;
   } catch (error) {
     if (llm.name === 'none') throw error; // nothing left to fall back to
     fallbackReason = `${llm.name} call failed: ${error instanceof Error ? error.message : String(error)}`;
   }
-  if (llm.name === 'none') throw new Error(fallbackReason);
-  return { need: capped(ruleParseNeed(text, now)), provider: 'none', usedFallback: true, fallbackReason };
+  return { need: checked(ruleParseNeed(text, now), now), provider: 'none', usedFallback: true, fallbackReason };
 }

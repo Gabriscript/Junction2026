@@ -67,6 +67,47 @@ describe('rule parser (LLM_PROVIDER=none)', () => {
     expect(ruleParseNeed('10 l milk', NOW).deliveryBy).toBeNull();
   });
 
+  it.each([
+    ['1.000 litres of milk', 1000, 'L'],
+    ['1 000 litres of milk', 1000, 'L'],
+    ['1,000 litres of milk', 1000, 'L'],
+    ['12 500 kg flour', 12500, 'KG'],
+    ['1.000,5 kg flour', 1000.5, 'KG'],
+    ['1,000.5 kg flour', 1000.5, 'KG'],
+    ['1,5 kg butter', 1.5, 'KG'],
+    ['0,500 kg butter', 0.5, 'KG'],
+    ['2.25 kg butter', 2.25, 'KG'],
+    ['500 g butter', 0.5, 'KG'],
+    ['500 ml cream', 0.5, 'L'],
+    ['3 dl cream', 0.3, 'L'],
+    ['200 green apples', 200, 'PCS'],
+  ])('reads the number and unit in %j', (text, quantity, unit) => {
+    expect(ruleParseNeed(text, NOW)).toMatchObject({ quantity, unit });
+  });
+
+  it.each(['1.2.3 kg butter', '1,2,3 kg butter', '1.000.5 kg butter', '1 000,5,5 kg butter', '12,34,567 kg butter'])('refuses to guess the ambiguous number in %j', (text) => {
+    expect(() => ruleParseNeed(text, NOW)).toThrow(/ambiguous/i);
+  });
+
+  it('reads Finnish dates, with and without a year', () => {
+    expect(ruleParseNeed('10 l milk by 20.11.2026', NOW)).toMatchObject({ quantity: 10, deliveryBy: '2026-11-20' });
+    expect(ruleParseNeed('10 l milk 5.12.', NOW)).toMatchObject({ quantity: 10, deliveryBy: '2026-12-05' });
+    // a day and month that have already passed this year mean next year
+    expect(ruleParseNeed('10 l milk 2.1.', NOW).deliveryBy).toBe('2027-01-02');
+    expect(() => ruleParseNeed('10 l milk 31.2.2027', NOW)).toThrow(/date/i);
+  });
+
+  it('rejects a delivery date before today (Helsinki), from the rules and from the LLM', async () => {
+    await expect(extractNeed('10 l milk by 2026-11-12', none, NOW)).rejects.toThrow(/before today/);
+    await expect(extractNeed('10 l milk by 12.11.2026', none, NOW)).rejects.toThrow(/before today/);
+    expect((await extractNeed('10 l milk by 2026-11-13', none, NOW)).need.deliveryBy).toBe('2026-11-13');
+    // 22:30 UTC is already the 14th in Helsinki
+    await expect(extractNeed('10 l milk by 2026-11-13', none, new Date('2026-11-13T22:30:00Z'))).rejects.toThrow(/before today/);
+
+    const stale: LLMProvider = { name: 'fake', parseNeed: async () => ({ ...validNeed, deliveryBy: '2020-01-01' }) };
+    expect(await extractNeed(BUTTER, stale, NOW)).toMatchObject({ usedFallback: true, need: { deliveryBy: '2026-11-20' } });
+  });
+
   it.each(['', '   ', 'milk please', '10 litres', '💥 ; DROP TABLE'])('rejects %j', (text) => {
     expect(() => ruleParseNeed(text, NOW)).toThrow();
   });
