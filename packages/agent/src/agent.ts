@@ -58,6 +58,14 @@ const toCents = (euros: number) => Math.floor(euros * 100 + 0.5 + 1e-9);
 const eur = (cents: number) => `€${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const toUnit = (baseUnit: string): Unit => (baseUnit === 'L' || baseUnit === 'KG' ? baseUnit : 'PCS');
 
+/**
+ * Makes a gateway-supplied string safe to show: no control or invisible formatting characters
+ * (newlines, ANSI escapes, bidi overrides), bounded length. Use it for every such string written
+ * to the trace or the console. It does not make text safe as LLM input: the raw trace must never
+ * be fed to an LLM.
+ */
+export const clean = (value: string, max = 120) => value.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '').slice(0, max);
+
 const lower = (values: string[]) => values.map((value) => value.toLowerCase());
 
 /** Product data is unsigned: never rely on the gateway having applied the need's filters. */
@@ -104,7 +112,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   step(
     'search_products',
     JSON.stringify(search),
-    `${products.length} found, ${excluded} excluded by the local attribute and allergen check, shortlist: ${shortlist.map((p) => p.id).join(', ') || 'none'}`,
+    `${products.length} found, ${excluded} excluded by the local attribute and allergen check, shortlist: ${shortlist.map((p) => clean(p.id)).join(', ') || 'none'}`,
   );
   if (!shortlist.length) return stop('no matching product');
 
@@ -120,7 +128,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   const candidates: Candidate[] = [];
   const seenOfferIds = new Set<string>();
   for (const raw of offers) {
-    const label = { offerId: String((raw as any)?.offer?.offerId ?? 'unknown'), productId: String((raw as any)?.offer?.productId ?? 'unknown') };
+    const label = { offerId: clean(String((raw as any)?.offer?.offerId ?? 'unknown')), productId: clean(String((raw as any)?.offer?.productId ?? 'unknown')) };
     const input = `${label.offerId} (${label.productId})`;
     const reject = (reasonCode: ReasonCode, detail: string) => {
       rejected.push({ ...label, reasonCode });
@@ -143,9 +151,9 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     const mismatch = seenOfferIds.has(offer.offerId)
       ? 'duplicate offer id'
       : offer.unit !== product.salesUnit
-        ? `unit ${offer.unit ?? 'missing'} is not the sales unit ${product.salesUnit}`
+        ? `unit ${clean(offer.unit ?? 'missing')} is not the sales unit ${clean(product.salesUnit)}`
         : offer.currency !== 'EUR'
-          ? `currency ${offer.currency ?? 'missing'} is not EUR`
+          ? `currency ${clean(offer.currency ?? 'missing')} is not EUR`
           : offer.quantity !== pack.packs
             ? `quoted for ${offer.quantity ?? 'no'} packs, ${pack.packs} requested`
             : need.deliveryBy && offer.requestedDate !== need.deliveryBy
@@ -175,19 +183,20 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
 
   const chosen = (deps.select ?? cheapest)(candidates, need);
   if (!chosen) return stop(`${candidates.length} usable offers`);
-  step('select_offer', `${candidates.length} usable offers`, `${chosen.offer.offerId}: ${chosen.product.name}, ${eur(chosen.totalCents)} ex VAT`);
+  const chosenLabel = { offerId: clean(chosen.offer.offerId), productId: clean(chosen.offer.productId) };
+  step('select_offer', `${candidates.length} usable offers`, `${chosenLabel.offerId}: ${clean(chosen.product.name)}, ${eur(chosen.totalCents)} ex VAT`);
   step('pack_math', `${need.quantity} ${need.unit}, pack size ${chosen.pack.packSize} ${need.unit}`, chosen.pack.note);
 
   // time has passed since verification: the offer must still be valid at the moment of ordering
   if (!offerIsCurrent(chosen.offer, now())) {
-    rejected.push({ offerId: chosen.offer.offerId, productId: chosen.offer.productId, reasonCode: 'OFFER_EXPIRED' });
-    return stop(`${chosen.offer.offerId} is no longer valid`);
+    rejected.push({ ...chosenLabel, reasonCode: 'OFFER_EXPIRED' });
+    return stop(`${chosenLabel.offerId} is no longer valid`);
   }
 
   // local spend cap, checked before the gateway sees anything. Written as !(a <= b) so a NaN cap blocks instead of allowing.
   const capCents = toCents(deps.mandate.maxOrderTotalEur);
   if (!(chosen.totalCents <= capCents)) {
-    rejected.push({ offerId: chosen.offer.offerId, productId: chosen.offer.productId, reasonCode: 'OVER_BUDGET' });
+    rejected.push({ ...chosenLabel, reasonCode: 'OVER_BUDGET' });
     return stop(`${eur(chosen.totalCents)} is above the mandate limit of ${eur(capCents)} per order`);
   }
 
@@ -200,8 +209,8 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   const order = response.data;
   step(
     'propose_order',
-    `${chosen.pack.packs} × ${chosen.offer.offerId}`,
-    `${order.orderId}: ${order.decision.status}${order.decision.reasonCodes.length ? ` (${order.decision.reasonCodes.join(', ')})` : ''}`,
+    `${chosen.pack.packs} × ${chosenLabel.offerId}`,
+    `${clean(order.orderId)}: ${order.decision.status}${order.decision.reasonCodes.length ? ` (${order.decision.reasonCodes.join(', ')})` : ''}`,
   );
 
   return { need, ordered: order.decision.status !== 'blocked', status: order.decision.status, decision: order.decision, order, chosen, rejected, trace };

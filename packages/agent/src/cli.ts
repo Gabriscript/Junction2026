@@ -1,4 +1,4 @@
-import { runAgent } from './agent';
+import { clean, runAgent } from './agent';
 import { MockGateway, MOCK_ISSUER } from './gateway';
 import { createProvider } from './llm';
 
@@ -15,7 +15,7 @@ try {
     console.log(`${index + 1}. ${step.action}\n   in:  ${step.input}\n   out: ${step.output}`);
   });
   const reasons = result.decision.reasonCodes.join(', ') || 'none';
-  console.log(`\nDecision: ${result.decision.status} (reason codes: ${reasons})${result.order ? `, order ${result.order.orderId}` : ', no order placed'}`);
+  console.log(`\nDecision: ${result.decision.status} (reason codes: ${reasons})${result.order ? `, order ${clean(result.order.orderId)}` : ', no order placed'}`);
 } catch (error) {
   console.error(`Agent failed: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
