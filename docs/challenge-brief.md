@@ -34,13 +34,13 @@ Example: a hotel chain's agent asks *"I need 1,000 litres of lactose-free milk b
 Example scenarios: need→recipe→order; last-minute event; supplier stock-out; proactive selling agent; allergen-safe substitution (school/hospital); standing-order drift detection.
 
 ## Judging
-| Criterion | Weight |
-|---|---|
-| Working end-to-end demo | 30% |
-| Solving the user's need | 20% |
-| Autonomy and controls (guardrails) | 20% |
-| Robustness to exceptions | 15% |
-| Openness and path to production | 15% |
+| Criterion | Weight | What it means (official) |
+|---|---|---|
+| Working end-to-end demo | 30% | Runs a full request → lookup → order/approval flow in the mocked environment, not just isolated pieces |
+| Solving the problem and user need | 20% | How precisely the agent matches what the buyer actually asked for, with the least manual correction needed |
+| Autonomy and controls | 20% | Quality of the guardrails design: what the agent decides alone, what needs human sign-off, how decisions are logged and auditable |
+| Robustness to exception situations | 15% | Partial availability, substitutions and delivery constraints beyond the happy path |
+| Openness and credible path toward production | 15% | Open, documented standards rather than a proprietary format, clear visibility of assumptions, well-justified technical choices, credible view of next development steps |
 
 "Trust and openness by design: a full flow that works, a clear model for human sign-off, and open, well-documented choices. **Not** a production-ready system in 48 hours."
 
