@@ -153,4 +153,51 @@ describe('runAgent with none + MockGateway', () => {
     expect(result.decision.status).toBe('blocked');
     expect(result.decision.reasonCodes).toContain('OFFER_EXPIRED');
   });
+
+  // a gateway whose search ignores the attribute and allergen filters it was given
+  const unfiltered = (gateway: MockGateway) => {
+    const genuine = gateway.searchProducts.bind(gateway);
+    gateway.searchProducts = (input) => genuine({ ...input, attributes: [], free_from_allergens: [] });
+    return gateway;
+  };
+
+  it('re-checks attributes and allergens locally instead of trusting the search result', async () => {
+    const result = await runAgent(DEMO, await deps(unfiltered(new MockGateway({ now: () => NOW }))));
+    // regular milk is cheaper but not lactose-free
+    expect(result.chosen?.product.id).toBe('LF-CASE12');
+    expect(result.trace.find((s) => s.action === 'search_products')?.output).toContain('1 excluded');
+
+    const milkFree = await runAgent('10 litres of milk-free milk by Monday', await deps(unfiltered(new MockGateway({ now: () => NOW }))));
+    expect(milkFree.ordered).toBe(false);
+
+    // unknown allergen data is not "free from"
+    const unknown = new MockGateway({ now: () => NOW });
+    const search = unknown.searchProducts.bind(unknown);
+    unknown.searchProducts = async (input) => (await search({ ...input, free_from_allergens: [] })).map(({ allergens, ...product }) => product);
+    expect((await runAgent('10 litres of milk without nuts by Monday', await deps(unknown))).ordered).toBe(false);
+  });
+
+  it('skips genuine offers that were signed for a different request, and replayed offer ids', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const genuine = gateway.getOffers.bind(gateway);
+    const propose = vi.spyOn(gateway, 'proposeOrder');
+    // validly signed, but for 12 L instead of the 1,000 L that were asked for
+    gateway.getOffers = (input) => genuine({ ...input, quantity: 12 });
+
+    const result = await runAgent(DEMO, await deps(gateway));
+
+    expect(propose).not.toHaveBeenCalled();
+    expect(result.ordered).toBe(false);
+    expect(result.trace.filter((s) => s.action === 'verify_offer').every((s) => s.output.startsWith('ignored'))).toBe(true);
+
+    const replaying = new MockGateway({ now: () => NOW });
+    const offers = replaying.getOffers.bind(replaying);
+    replaying.getOffers = async (input) => {
+      const signed = await offers(input);
+      return [...signed, ...signed];
+    };
+    const replayed = await runAgent(DEMO, await deps(replaying));
+    expect(replayed.ordered).toBe(true);
+    expect(replayed.trace.filter((s) => s.output.includes('duplicate offer id'))).toHaveLength(5);
+  });
 });

@@ -34,7 +34,7 @@ export const Product = z.object({
   allowedLotSize: z.number().positive().optional(),
   countryOfOrigin: z.string().optional(),
   attributes: z.array(z.string()),
-  allergens: z.array(z.string()),
+  allergens: z.array(z.string()).optional(), // missing = unknown, which is not the same as none
 });
 export type Product = z.infer<typeof Product>;
 

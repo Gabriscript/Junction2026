@@ -52,6 +52,18 @@ const SHORTLIST_SIZE = 5;
 const eur = (value: number) => `€${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const toUnit = (baseUnit: string): Unit => (baseUnit === 'L' || baseUnit === 'KG' ? baseUnit : 'PCS');
 
+const lower = (values: string[]) => values.map((value) => value.toLowerCase());
+
+/** Product data is unsigned: never rely on the gateway having applied the need's filters. */
+function matchesNeed(product: Product, need: StructuredNeed): boolean {
+  const attributes = lower(product.attributes);
+  if (!lower(need.attributes).every((attribute) => attributes.includes(attribute))) return false;
+  if (!need.freeFromAllergens.length) return true;
+  if (!product.allergens) return false; // unknown allergen data cannot prove "free from"
+  const allergens = lower(product.allergens);
+  return !lower(need.freeFromAllergens).some((allergen) => allergens.includes(allergen));
+}
+
 export const cheapest: SelectOffer = (candidates) => [...candidates].sort((a, b) => a.total - b.total)[0];
 
 export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResult> {
@@ -79,8 +91,14 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   const search = { text: need.productQuery, attributes: need.attributes, free_from_allergens: need.freeFromAllergens, unit: need.unit };
   const products = Product.array().parse(await gateway.searchProducts(search));
   // shortcut: only products sold in the need's unit and with a known pack size, convert L↔KG↔PCS via unitConversions in step 8
-  const shortlist = products.filter((product) => toUnit(product.baseUnit) === need.unit && packSizeOf(product)).slice(0, SHORTLIST_SIZE);
-  step('search_products', JSON.stringify(search), `${products.length} found, shortlist: ${shortlist.map((p) => p.id).join(', ') || 'none'}`);
+  const matching = products.filter((product) => matchesNeed(product, need));
+  const excluded = products.length - matching.length;
+  const shortlist = matching.filter((product) => toUnit(product.baseUnit) === need.unit && packSizeOf(product)).slice(0, SHORTLIST_SIZE);
+  step(
+    'search_products',
+    JSON.stringify(search),
+    `${products.length} found, ${excluded} excluded by the local attribute and allergen check, shortlist: ${shortlist.map((p) => p.id).join(', ') || 'none'}`,
+  );
   if (!shortlist.length) return stop('no matching product');
 
   const offersInput = {
@@ -93,6 +111,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   step('get_offers', JSON.stringify(offersInput), `${offers.length} signed offers`);
 
   const candidates: Candidate[] = [];
+  const seenOfferIds = new Set<string>();
   for (const raw of offers) {
     const label = { offerId: String((raw as any)?.offer?.offerId ?? 'unknown'), productId: String((raw as any)?.offer?.productId ?? 'unknown') };
     const input = `${label.offerId} (${label.productId})`;
@@ -113,6 +132,23 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
       continue;
     }
     const pack = packMath(need, packSizeOf(product)!, product.allowedLotSize);
+    // a genuine signature only proves Aimo made this offer, not that it answers this request
+    const mismatch = seenOfferIds.has(offer.offerId)
+      ? 'duplicate offer id'
+      : offer.unit !== product.salesUnit
+        ? `unit ${offer.unit ?? 'missing'} is not the sales unit ${product.salesUnit}`
+        : offer.currency !== 'EUR'
+          ? `currency ${offer.currency ?? 'missing'} is not EUR`
+          : offer.quantity !== pack.packs
+            ? `quoted for ${offer.quantity ?? 'no'} packs, ${pack.packs} requested`
+            : need.deliveryBy && offer.requestedDate !== need.deliveryBy
+              ? `quoted for ${offer.requestedDate ?? 'no date'}, ${need.deliveryBy} requested`
+              : undefined;
+    seenOfferIds.add(offer.offerId);
+    if (mismatch) {
+      step('verify_offer', input, `ignored: offer does not match the request (${mismatch})`);
+      continue;
+    }
     if (offer.salesBlock) {
       reject('SALES_BLOCK', 'product cannot be ordered now');
       continue;

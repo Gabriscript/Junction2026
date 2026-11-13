@@ -109,7 +109,7 @@ export class MockGateway implements GatewayClient {
       (product) =>
         words.every((word) => product.name.toLowerCase().includes(word)) &&
         input.attributes.every((attribute) => product.attributes.includes(attribute)) &&
-        !input.free_from_allergens.some((allergen) => product.allergens.includes(allergen)),
+        !input.free_from_allergens.some((allergen) => product.allergens?.includes(allergen)),
     ).map(({ price, stock, leadDays, labels, salesBlock, ...product }) => product);
   }
 
