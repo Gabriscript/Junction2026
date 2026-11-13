@@ -25,6 +25,7 @@ describe('runAgent with none + MockGateway', () => {
     expect(result.decision).toEqual({ status: 'auto_approved', reasonCodes: [] });
     // cheapest offer that covers quantity and date is the 12 L case
     expect(result.chosen?.product.id).toBe('LF-CASE12');
+    expect(result.chosen?.totalCents).toBe(120960); // 84 x 14.40, not 1209.6000000000001
     expect(result.chosen?.pack.note).toContain('84 packs × 12 L = 1,008 L (+8 L)');
     // never proposes the cheaper regular milk: it is not lactose-free
     expect(result.trace.map((s) => s.output).join(' ')).not.toContain('MILK-1L');
@@ -254,5 +255,45 @@ describe('runAgent with none + MockGateway', () => {
     const written = [...result.trace.flatMap((s) => [s.input, s.output]), ...result.rejected.flatMap((r) => [r.offerId, r.productId])];
     for (const value of written) expect(value).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
     expect(result.rejected[0].offerId).toHaveLength(120);
+  });
+
+  it('treats unknown availability as not deliverable and flags unverified stock', async () => {
+    const result = await runAgent(DEMO, await deps(new MockGateway({ now: () => NOW, stock: { 'LF-CASE12': null, 'LF-1L': 'unverified' } })));
+
+    expect(result.rejected).toContainEqual(expect.objectContaining({ productId: 'LF-CASE12', reasonCode: 'PARTIAL_AVAILABILITY' }));
+    // Terminal placeholder stock stays selectable, but the result says it was not verified
+    expect(result.chosen?.product.id).toBe('LF-1L');
+    expect(result.ordered).toBe(true);
+    expect(result.decision.reasonCodes).toContain('UNVERIFIED_STOCK');
+
+    const verified = await runAgent(DEMO, await deps(new MockGateway({ now: () => NOW })));
+    expect(verified.decision.reasonCodes).not.toContain('UNVERIFIED_STOCK');
+  });
+
+  it('returns a blocked result with the trace so far when a gateway call fails', async () => {
+    const failing = async (method: 'searchProducts' | 'getOffers' | 'proposeOrder', impl: () => Promise<any>) => {
+      const gateway = new MockGateway({ now: () => NOW });
+      gateway[method] = impl;
+      return runAgent(DEMO, await deps(gateway));
+    };
+    const boom = async () => {
+      throw new Error(`boom${String.fromCharCode(10, 27)}[31m`);
+    };
+
+    const search = await failing('searchProducts', boom);
+    expect(search).toMatchObject({ ordered: false, status: 'blocked' });
+    expect(search.trace.map((s) => s.action)).toEqual(['parse_need', 'error', 'stop']);
+    expect(search.trace[1].output).toBe('boom[31m');
+
+    const offers = await failing('getOffers', async () => 'not a list');
+    expect(offers).toMatchObject({ ordered: false, status: 'blocked' });
+    expect(offers.trace.map((s) => s.action)).toContain('search_products');
+
+    const products = await failing('searchProducts', async () => [{ id: 1 }]);
+    expect(products).toMatchObject({ ordered: false, status: 'blocked' });
+
+    const propose = await failing('proposeOrder', boom);
+    expect(propose).toMatchObject({ ordered: false, status: 'blocked' });
+    expect(propose.trace.map((s) => s.action)).toContain('select_offer');
   });
 });

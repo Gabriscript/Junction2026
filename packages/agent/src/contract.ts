@@ -64,7 +64,7 @@ export const Offer = z.object({
   totals: z.unknown().optional(),
   comparisonPrice: z.object({ value: z.number(), unit: z.string() }).nullable().optional(),
   netPriceFound: z.boolean().optional(),
-  availableQuantity: z.number().nonnegative(), // sales units
+  availableQuantity: z.number().nonnegative().nullable(), // sales units, null = unknown
   quantityVerified: z.boolean().optional(), // true = Stock, false = Terminal
   logisticModel: z.string().nullable().optional(),
   availableDate: z.iso.date().nullable(), // null = not deliverable on any date

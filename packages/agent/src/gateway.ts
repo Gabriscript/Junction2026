@@ -80,6 +80,8 @@ export interface MockGatewayOptions {
   now?: () => Date;
   autoApproveLimit?: number; // EUR ex VAT, stands in for the buyer mandate
   offerTtlMs?: number;
+  /** Per product id: stock override, null for unknown, 'unverified' for the Terminal placeholder. */
+  stock?: Record<string, number | null | 'unverified'>;
 }
 
 /** In-memory stand-in for the Aimo gateway. Offers are really signed (ES256), so verification is real. */
@@ -87,6 +89,7 @@ export class MockGateway implements GatewayClient {
   private readonly now: () => Date;
   private readonly autoApproveLimit: number;
   private readonly offerTtlMs: number;
+  private readonly stock: NonNullable<MockGatewayOptions['stock']>;
   private readonly keys = generateKeyPair('ES256');
   private readonly offers = new Map<string, Offer>();
   private readonly orders = new Map<string, Order>();
@@ -95,6 +98,7 @@ export class MockGateway implements GatewayClient {
     this.now = options.now ?? (() => new Date());
     this.autoApproveLimit = options.autoApproveLimit ?? 5000;
     this.offerTtlMs = options.offerTtlMs ?? OFFER_TTL_MS;
+    this.stock = options.stock ?? {};
   }
 
   /** The keys the mock "publishes". Read once at setup to build the agent's trust config, never during a run. */
@@ -120,6 +124,7 @@ export class MockGateway implements GatewayClient {
     for (const product of FIXTURE.filter((candidate) => input.product_ids.includes(candidate.id))) {
       const packSize = product.units[0].sizeInBaseUnits;
       const availableDate = addDays(todayIso(now), product.leadDays);
+      const stock = product.id in this.stock ? this.stock[product.id] : product.stock;
       const payload: Offer = {
         offerId: `offer-${this.offers.size + 1}`,
         productId: product.id,
@@ -133,9 +138,9 @@ export class MockGateway implements GatewayClient {
         vatRate: VAT_FOOD,
         comparisonPrice: { value: Math.round((product.price / packSize) * 100) / 100, unit: product.baseUnit },
         netPriceFound: false,
-        availableQuantity: product.stock,
-        quantityVerified: true,
-        logisticModel: 'Stock',
+        availableQuantity: stock === 'unverified' ? 999999 : stock,
+        quantityVerified: stock !== 'unverified',
+        logisticModel: stock === 'unverified' ? 'Terminal' : 'Stock',
         availableDate,
         cutoffTime: null,
         salesBlock: product.salesBlock ?? false,
@@ -167,7 +172,7 @@ export class MockGateway implements GatewayClient {
         reasons.add('OFFER_EXPIRED');
         blocked = true;
       }
-      if (input.quantities[index] > offer.availableQuantity) reasons.add('PARTIAL_AVAILABILITY');
+      if (input.quantities[index] > (offer.availableQuantity ?? 0)) reasons.add('PARTIAL_AVAILABILITY');
       total += offer.unitPrice * input.quantities[index];
     });
     if (total > this.autoApproveLimit) reasons.add('OVER_AUTO_LIMIT');
