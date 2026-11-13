@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { StructuredNeed, type Unit } from './contract';
+import { StructuredNeed, type Unit } from './contract.js';
 
 /** Turns free text into a candidate need. The output is untrusted: extractNeed validates it. */
 export interface LLMProvider {

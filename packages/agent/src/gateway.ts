@@ -11,8 +11,8 @@ import type {
   ReasonCode,
   SearchProductsInput,
   SignedOffer,
-} from './contract';
-import { addDays, todayIso } from './llm';
+} from './contract.js';
+import { addDays, todayIso } from './llm.js';
 
 /** The 7 gateway tools (PLAN.md section 6). Verification keys are not part of it: they come from the agent's own trust config. */
 export interface GatewayClient {
@@ -122,9 +122,10 @@ export class MockGateway implements GatewayClient {
     const now = this.now();
     const offers: SignedOffer[] = [];
     for (const product of FIXTURE.filter((candidate) => input.product_ids.includes(candidate.id))) {
-      const packSize = product.units[0].sizeInBaseUnits;
+      const packSize = product.units[0]?.sizeInBaseUnits;
+      if (!packSize) continue; // a fixture without a sales unit cannot be quoted
       const availableDate = addDays(todayIso(now), product.leadDays);
-      const stock = product.id in this.stock ? this.stock[product.id] : product.stock;
+      const stock = product.id in this.stock ? (this.stock[product.id] ?? null) : product.stock;
       const payload: Offer = {
         offerId: `offer-${this.offers.size + 1}`,
         productId: product.id,
@@ -172,8 +173,9 @@ export class MockGateway implements GatewayClient {
         reasons.add('OFFER_EXPIRED');
         blocked = true;
       }
-      if (input.quantities[index] > (offer.availableQuantity ?? 0)) reasons.add('PARTIAL_AVAILABILITY');
-      total += offer.unitPrice * input.quantities[index];
+      const quantity = input.quantities[index] ?? 0; // lengths were checked above
+      if (quantity > (offer.availableQuantity ?? 0)) reasons.add('PARTIAL_AVAILABILITY');
+      total += offer.unitPrice * quantity;
     });
     if (total > this.autoApproveLimit) reasons.add('OVER_AUTO_LIMIT');
 

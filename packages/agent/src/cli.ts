@@ -1,6 +1,6 @@
-import { clean, runAgent } from './agent';
-import { MockGateway, MOCK_ISSUER } from './gateway';
-import { createProvider } from './llm';
+import { clean, runAgent } from './agent.js';
+import { MockGateway, MOCK_ISSUER } from './gateway.js';
+import { createProvider } from './llm.js';
 
 const text = process.argv.slice(2).join(' ') || 'I need 1,000 litres of lactose-free milk by Monday';
 

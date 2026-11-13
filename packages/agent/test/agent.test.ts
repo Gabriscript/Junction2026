@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cheapest, clean, runAgent } from '../src/agent';
-import { MockGateway } from '../src/gateway';
-import { createProvider } from '../src/llm';
+import { cheapest, clean, runAgent } from '../src/agent.js';
+import { MockGateway } from '../src/gateway.js';
+import { createProvider } from '../src/llm.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';
@@ -254,7 +254,7 @@ describe('runAgent with none + MockGateway', () => {
 
     const written = [...result.trace.flatMap((s) => [s.input, s.output]), ...result.rejected.flatMap((r) => [r.offerId, r.productId])];
     for (const value of written) expect(value).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
-    expect(result.rejected[0].offerId).toHaveLength(120);
+    expect(result.rejected[0]?.offerId).toHaveLength(120);
   });
 
   it('treats unknown availability as not deliverable and flags unverified stock', async () => {
@@ -283,7 +283,7 @@ describe('runAgent with none + MockGateway', () => {
     const search = await failing('searchProducts', boom);
     expect(search).toMatchObject({ ordered: false, status: 'blocked' });
     expect(search.trace.map((s) => s.action)).toEqual(['parse_need', 'error', 'stop']);
-    expect(search.trace[1].output).toBe('boom[31m');
+    expect(search.trace[1]?.output).toBe('boom[31m');
 
     const offers = await failing('getOffers', async () => 'not a list');
     expect(offers).toMatchObject({ ordered: false, status: 'blocked' });

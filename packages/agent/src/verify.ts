@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import { compactVerify, createLocalJWKSet, createRemoteJWKSet, type JSONWebKeySet } from 'jose';
-import { Offer, SignedOffer, type ReasonCode } from './contract';
+import { Offer, SignedOffer, type ReasonCode } from './contract.js';
 
 export type OfferVerification = { ok: true; offer: Offer } | { ok: false; reasonCode: ReasonCode };
 

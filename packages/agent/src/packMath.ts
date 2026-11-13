@@ -1,4 +1,4 @@
-import type { Product, Unit } from './contract';
+import type { Product, Unit } from './contract.js';
 
 export interface PackPlan {
   packs: number; // sales units to order

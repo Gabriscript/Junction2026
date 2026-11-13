@@ -1,10 +1,10 @@
-import { Order, Product, type Decision, type Offer, type ReasonCode, type StructuredNeed, type Unit } from './contract';
-import type { GatewayClient } from './gateway';
-import { extractNeed, type LLMProvider } from './llm';
-import { packMath, packSizeOf, type PackPlan } from './packMath';
+import { Order, Product, type Decision, type Offer, type ReasonCode, type StructuredNeed, type Unit } from './contract.js';
+import type { GatewayClient } from './gateway.js';
+import { extractNeed, type LLMProvider } from './llm.js';
+import { packMath, packSizeOf, type PackPlan } from './packMath.js';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
-import { offerIsCurrent, verifyOffer, type Trust } from './verify';
+import { offerIsCurrent, verifyOffer, type Trust } from './verify.js';
 
 export interface TraceStep {
   action: string;

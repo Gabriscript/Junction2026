@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { MockGateway, type MockGatewayOptions } from '../src/gateway';
-import { MAX_OFFER_TTL_MS, verifyOffer } from '../src/verify';
+import { MockGateway, type MockGatewayOptions } from '../src/gateway.js';
+import { MAX_OFFER_TTL_MS, verifyOffer } from '../src/verify.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z');
 
 async function setup(options: MockGatewayOptions = {}) {
   const gateway = new MockGateway({ now: () => NOW, ...options });
   const [offer] = await gateway.getOffers({ product_ids: ['LF-CASE12'], quantity: 1000, unit: 'L' });
+  if (!offer) throw new Error('the mock returned no offer');
   // the trust root is built once from the published keys, out of band
   return { gateway, offer, trust: { issuer: 'mock-gateway', jwks: await gateway.getJwks() } };
 }
@@ -29,7 +30,7 @@ describe('verifyOffer', () => {
   it('rejects a price tampered inside the JWS payload', async () => {
     const { offer, trust } = await setup();
     const [header, payload, signature] = offer.jws.split('.');
-    const forged = { ...JSON.parse(Buffer.from(payload, 'base64url').toString()), unitPrice: 0.01 };
+    const forged = { ...JSON.parse(Buffer.from(payload ?? '', 'base64url').toString()), unitPrice: 0.01 };
     const jws = [header, b64url(forged), signature].join('.');
     expect(await verifyOffer({ offer: forged, jws }, trust, NOW)).toEqual({ ok: false, reasonCode: 'OFFER_SIGNATURE_INVALID' });
   });

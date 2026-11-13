@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { StructuredNeed } from '../src/contract';
-import { createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from '../src/llm';
+import { StructuredNeed } from '../src/contract.js';
+import { createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from '../src/llm.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';
@@ -174,9 +174,10 @@ describe('createProvider', () => {
     );
     const result = await extractNeed(BUTTER, llm, NOW);
     expect(result).toMatchObject({ provider: 'openrouter', usedFallback: false, need: validNeed });
-    expect(calls[0].url).toContain('openrouter.ai');
-    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
-    expect(JSON.parse(String(calls[0].init.body)).model).toBe('some/model');
+    const call = calls[0]!;
+    expect(call.url).toContain('openrouter.ai');
+    expect((call.init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
+    expect(JSON.parse(String(call.init.body)).model).toBe('some/model');
   });
 
   it('openrouter: non-JSON reply or HTTP error falls back', async () => {
