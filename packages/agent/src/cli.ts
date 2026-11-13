@@ -1,0 +1,19 @@
+import { runAgent } from './agent';
+import { MockGateway } from './gateway';
+import { createProvider } from './llm';
+
+const text = process.argv.slice(2).join(' ') || 'I need 1,000 litres of lactose-free milk by Monday';
+
+try {
+  // LLM_PROVIDER defaults to none; the gateway is the in-process mock until the real one exists
+  const result = await runAgent(text, { llm: createProvider(), gateway: new MockGateway(), now: new Date() });
+  console.log(`Request: ${text}\n`);
+  result.trace.forEach((step, index) => {
+    console.log(`${index + 1}. ${step.action}\n   in:  ${step.input}\n   out: ${step.output}`);
+  });
+  const reasons = result.decision.reasonCodes.join(', ') || 'none';
+  console.log(`\nDecision: ${result.decision.status} (reason codes: ${reasons})${result.order ? `, order ${result.order.orderId}` : ', no order placed'}`);
+} catch (error) {
+  console.error(`Agent failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+}
