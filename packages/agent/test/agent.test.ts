@@ -200,4 +200,42 @@ describe('runAgent with none + MockGateway', () => {
     expect(replayed.ordered).toBe(true);
     expect(replayed.trace.filter((s) => s.output.includes('duplicate offer id'))).toHaveLength(5);
   });
+
+  it('derives ordered from the validated order response', async () => {
+    const respond = async (change: (order: any) => unknown) => {
+      const gateway = new MockGateway({ now: () => NOW });
+      const genuine = gateway.proposeOrder.bind(gateway);
+      gateway.proposeOrder = async (input) => change(await genuine(input)) as any;
+      return runAgent(DEMO, await deps(gateway));
+    };
+
+    const blocked = await respond((order) => ({ ...order, decision: { status: 'blocked', reasonCodes: ['OFFER_EXPIRED'] }, status: 'blocked' }));
+    expect(blocked).toMatchObject({ ordered: false, status: 'blocked', decision: { reasonCodes: ['OFFER_EXPIRED'] } });
+
+    const approved = await respond((order) => order);
+    expect(approved).toMatchObject({ ordered: true, status: 'auto_approved' });
+
+    // an order for other quantities or offers than proposed is not our order
+    for (const change of [(order: any) => ({ ...order, quantities: [1] }), (order: any) => ({ ...order, offerIds: ['offer-999'] }), () => ({ ok: true })]) {
+      const result = await respond(change);
+      expect(result).toMatchObject({ ordered: false, status: 'blocked' });
+      expect(result.order).toBeUndefined();
+      expect(result.trace.at(-1)?.input).toContain('order response');
+    }
+  });
+
+  it('refuses locally to propose above the mandate spend cap', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const propose = vi.spyOn(gateway, 'proposeOrder');
+
+    // the demo order is 84 x 14.40 = 1,209.60 EUR ex VAT
+    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { maxOrderTotalEur: 1209.59 } });
+
+    expect(propose).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ordered: false, status: 'blocked' });
+    expect(result.decision.reasonCodes).toContain('OVER_BUDGET');
+
+    const atCap = await runAgent(DEMO, { ...(await deps(new MockGateway({ now: () => NOW }))), mandate: { maxOrderTotalEur: 1209.6 } });
+    expect(atCap.ordered).toBe(true);
+  });
 });

@@ -1,7 +1,8 @@
-import { Product, type Decision, type Offer, type Order, type ReasonCode, type StructuredNeed, type Unit } from './contract';
+import { Order, Product, type Decision, type Offer, type ReasonCode, type StructuredNeed, type Unit } from './contract';
 import type { GatewayClient } from './gateway';
 import { extractNeed, type LLMProvider } from './llm';
 import { packMath, packSizeOf, type PackPlan } from './packMath';
+import { isDeepStrictEqual } from 'node:util';
 import { offerIsCurrent, verifyOffer, type Trust } from './verify';
 
 export interface TraceStep {
@@ -15,7 +16,7 @@ export interface Candidate {
   offer: Offer; // the signed payload, not the plain copy
   product: Product;
   pack: PackPlan;
-  total: number; // EUR ex VAT for pack.packs
+  totalCents: number; // integer euro cents ex VAT for pack.packs
 }
 
 export interface RejectedOffer {
@@ -33,14 +34,17 @@ export interface AgentDeps {
   now: () => Date;
   /** Trusted offer issuer and its keys. From configuration, never from `gateway`. */
   trust: Trust;
-  mandate?: unknown;
+  /** Buyer mandate. The spend cap (EUR ex VAT per order) is enforced locally; the whole object is passed on to the gateway. */
+  mandate: { maxOrderTotalEur: number; [key: string]: unknown };
   /** Extension point for step 8 (ranking, substitution, partial fill). Default: cheapest total. */
   select?: SelectOffer;
 }
 
 export interface AgentResult {
   need: StructuredNeed;
+  /** True when an order was submitted: auto-approved or waiting for approval. Never true for a blocked order. */
   ordered: boolean;
+  status: Decision['status'];
   decision: Decision;
   order?: Order;
   chosen?: Candidate;
@@ -49,7 +53,9 @@ export interface AgentResult {
 }
 
 const SHORTLIST_SIZE = 5;
-const eur = (value: number) => `€${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// money is integer euro cents: rounded once (half up) from the decimal EUR the contract gives, formatted only at the edge
+const toCents = (euros: number) => Math.floor(euros * 100 + 0.5 + 1e-9);
+const eur = (cents: number) => `€${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const toUnit = (baseUnit: string): Unit => (baseUnit === 'L' || baseUnit === 'KG' ? baseUnit : 'PCS');
 
 const lower = (values: string[]) => values.map((value) => value.toLowerCase());
@@ -64,7 +70,7 @@ function matchesNeed(product: Product, need: StructuredNeed): boolean {
   return !lower(need.freeFromAllergens).some((allergen) => allergens.includes(allergen));
 }
 
-export const cheapest: SelectOffer = (candidates) => [...candidates].sort((a, b) => a.total - b.total)[0];
+export const cheapest: SelectOffer = (candidates) => [...candidates].sort((a, b) => a.totalCents - b.totalCents)[0];
 
 export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResult> {
   const { gateway, now } = deps;
@@ -85,7 +91,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   const stop = (why: string): AgentResult => {
     const decision: Decision = { status: 'blocked', reasonCodes: [...new Set(rejected.map((r) => r.reasonCode))] };
     step('stop', why, `not ordered: ${decision.reasonCodes.join(', ') || 'no reason code applies'}`);
-    return { need, ordered: false, decision, rejected, trace };
+    return { need, ordered: false, status: 'blocked', decision, rejected, trace };
   };
 
   const search = { text: need.productQuery, attributes: need.attributes, free_from_allergens: need.freeFromAllergens, unit: need.unit };
@@ -161,14 +167,14 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
       reject('PARTIAL_AVAILABILITY', `${offer.availableQuantity} of ${pack.packs} packs available`);
       continue;
     }
-    const total = pack.packs * offer.unitPrice;
-    candidates.push({ offer, product, pack, total });
-    step('verify_offer', input, `signature valid, ${eur(offer.unitPrice)} per pack, available ${offer.availableDate}, total ${eur(total)} ex VAT`);
+    const totalCents = toCents(pack.packs * offer.unitPrice);
+    candidates.push({ offer, product, pack, totalCents });
+    step('verify_offer', input, `signature valid, ${eur(toCents(offer.unitPrice))} per pack, available ${offer.availableDate}, total ${eur(totalCents)} ex VAT`);
   }
 
   const chosen = (deps.select ?? cheapest)(candidates, need);
   if (!chosen) return stop(`${candidates.length} usable offers`);
-  step('select_offer', `${candidates.length} usable offers`, `${chosen.offer.offerId}: ${chosen.product.name}, ${eur(chosen.total)} ex VAT`);
+  step('select_offer', `${candidates.length} usable offers`, `${chosen.offer.offerId}: ${chosen.product.name}, ${eur(chosen.totalCents)} ex VAT`);
   step('pack_math', `${need.quantity} ${need.unit}, pack size ${chosen.pack.packSize} ${need.unit}`, chosen.pack.note);
 
   // time has passed since verification: the offer must still be valid at the moment of ordering
@@ -177,13 +183,25 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     return stop(`${chosen.offer.offerId} is no longer valid`);
   }
 
+  // local spend cap, checked before the gateway sees anything. Written as !(a <= b) so a NaN cap blocks instead of allowing.
+  const capCents = toCents(deps.mandate.maxOrderTotalEur);
+  if (!(chosen.totalCents <= capCents)) {
+    rejected.push({ offerId: chosen.offer.offerId, productId: chosen.offer.productId, reasonCode: 'OVER_BUDGET' });
+    return stop(`${eur(chosen.totalCents)} is above the mandate limit of ${eur(capCents)} per order`);
+  }
+
   const proposal = { offer_ids: [chosen.offer.offerId], quantities: [chosen.pack.packs], mandate: deps.mandate };
-  const order = await gateway.proposeOrder(proposal);
+  const response = Order.safeParse(await gateway.proposeOrder(proposal));
+  // the response is as untrusted as any other gateway output: it must be an order for exactly what was proposed
+  if (!response.success || !isDeepStrictEqual(response.data.offerIds, proposal.offer_ids) || !isDeepStrictEqual(response.data.quantities, proposal.quantities)) {
+    return stop('the order response does not match the proposal: order state unknown, check the gateway');
+  }
+  const order = response.data;
   step(
     'propose_order',
     `${chosen.pack.packs} × ${chosen.offer.offerId}`,
     `${order.orderId}: ${order.decision.status}${order.decision.reasonCodes.length ? ` (${order.decision.reasonCodes.join(', ')})` : ''}`,
   );
 
-  return { need, ordered: true, decision: order.decision, order, chosen, rejected, trace };
+  return { need, ordered: order.decision.status !== 'blocked', status: order.decision.status, decision: order.decision, order, chosen, rejected, trace };
 }
