@@ -1,17 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runAgent } from '../src/agent';
+import { cheapest, runAgent } from '../src/agent';
 import { MockGateway } from '../src/gateway';
 import { createProvider } from '../src/llm';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';
 const llm = createProvider({ LLM_PROVIDER: 'none' });
-const deps = (gateway: MockGateway) => ({ llm, gateway, now: NOW });
+// the trust root is built once from the mock's published keys, out of band
+const deps = async (gateway: MockGateway, published: MockGateway = gateway) => ({
+  llm,
+  gateway,
+  now: () => NOW,
+  mandate: { maxOrderTotalEur: 5000 },
+  trust: { issuer: 'mock-gateway', jwks: await published.getJwks() },
+});
 
 describe('runAgent with none + MockGateway', () => {
   it('runs the demo phrase end to end', async () => {
     const gateway = new MockGateway({ now: () => NOW });
-    const result = await runAgent(DEMO, deps(gateway));
+    const result = await runAgent(DEMO, await deps(gateway));
 
     expect(result.need).toMatchObject({ quantity: 1000, unit: 'L', deliveryBy: '2026-11-16' });
     expect(result.ordered).toBe(true);
@@ -49,7 +56,7 @@ describe('runAgent with none + MockGateway', () => {
     gateway.getOffers = async (input) => (await genuine(input)).map((signed) => ({ ...signed, offer: { ...signed.offer, unitPrice: 0.01 } }));
     const propose = vi.spyOn(gateway, 'proposeOrder');
 
-    const result = await runAgent(DEMO, deps(gateway));
+    const result = await runAgent(DEMO, await deps(gateway));
 
     expect(propose).not.toHaveBeenCalled();
     expect(result.ordered).toBe(false);
@@ -63,7 +70,7 @@ describe('runAgent with none + MockGateway', () => {
     gateway.getOffers = async (input) =>
       (await genuine(input)).map((signed) => (signed.offer.productId === 'LF-CASE12' ? { ...signed, offer: { ...signed.offer, unitPrice: 0.01 } } : signed));
 
-    const result = await runAgent(DEMO, deps(gateway));
+    const result = await runAgent(DEMO, await deps(gateway));
 
     expect(result.ordered).toBe(true);
     expect(result.chosen?.product.id).toBe('LF-1L');
@@ -75,7 +82,7 @@ describe('runAgent with none + MockGateway', () => {
     const gateway = new MockGateway({ now: () => new Date(NOW.getTime() - 3_600_000) });
     const propose = vi.spyOn(gateway, 'proposeOrder');
 
-    const result = await runAgent(DEMO, deps(gateway));
+    const result = await runAgent(DEMO, await deps(gateway));
 
     expect(propose).not.toHaveBeenCalled();
     expect(result.ordered).toBe(false);
@@ -83,20 +90,20 @@ describe('runAgent with none + MockGateway', () => {
   });
 
   it('does not order when nothing matches', async () => {
-    const result = await runAgent('5 kg unicorn steak by Monday', deps(new MockGateway({ now: () => NOW })));
+    const result = await runAgent('5 kg unicorn steak by Monday', await deps(new MockGateway({ now: () => NOW })));
     expect(result.ordered).toBe(false);
     expect(result.decision.status).toBe('blocked');
     expect(result.trace.length).toBeGreaterThan(0);
   });
 
   it('never orders a product that contains an excluded allergen', async () => {
-    const result = await runAgent('10 litres of milk-free milk by Monday', deps(new MockGateway({ now: () => NOW })));
+    const result = await runAgent('10 litres of milk-free milk by Monday', await deps(new MockGateway({ now: () => NOW })));
     expect(result.ordered).toBe(false);
   });
 
   it('routes an order above the mock auto-approve limit to approval', async () => {
     const gateway = new MockGateway({ now: () => NOW, autoApproveLimit: 100 });
-    const result = await runAgent(DEMO, deps(gateway));
+    const result = await runAgent(DEMO, await deps(gateway));
     expect(result.decision).toEqual({ status: 'needs_approval', reasonCodes: ['OVER_AUTO_LIMIT'] });
     const approved = await gateway.approveOrder({ order_id: result.order!.orderId, approver: 'chef' });
     expect(approved.status).toBe('placed');
@@ -104,10 +111,46 @@ describe('runAgent with none + MockGateway', () => {
 
   it('lets a custom selector replace the cheapest-offer rule', async () => {
     const result = await runAgent(DEMO, {
-      ...deps(new MockGateway({ now: () => NOW })),
+      ...(await deps(new MockGateway({ now: () => NOW }))),
       select: (candidates) => candidates.find((c) => c.product.id === 'LF-1L'),
     });
     expect(result.chosen?.product.id).toBe('LF-1L');
     expect(result.chosen?.pack.note).toBe('1,000 L → 1,000 packs × 1 L');
+  });
+
+  it('trusts only the configured keys, not the JWKS of the gateway that serves the offers', async () => {
+    const genuine = new MockGateway({ now: () => NOW });
+    // a look-alike gateway signs its own offers and would happily publish its own JWKS
+    const impostor = new MockGateway({ now: () => NOW });
+    const getJwks = vi.spyOn(impostor, 'getJwks');
+    const propose = vi.spyOn(impostor, 'proposeOrder');
+
+    const result = await runAgent(DEMO, await deps(impostor, genuine));
+
+    expect(getJwks).not.toHaveBeenCalled();
+    expect(propose).not.toHaveBeenCalled();
+    expect(result.ordered).toBe(false);
+    expect(result.decision).toEqual({ status: 'blocked', reasonCodes: ['OFFER_SIGNATURE_INVALID'] });
+  });
+
+  it('re-reads the clock and does not propose an offer that expired after verification', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const propose = vi.spyOn(gateway, 'proposeOrder');
+    let clock = NOW;
+
+    const result = await runAgent(DEMO, {
+      ...(await deps(gateway)),
+      now: () => clock,
+      // time passes between verification and the order (slow selection, human in the loop, ...)
+      select: (candidates, need) => {
+        clock = new Date(NOW.getTime() + 2 * 3_600_000);
+        return cheapest(candidates, need);
+      },
+    });
+
+    expect(propose).not.toHaveBeenCalled();
+    expect(result.ordered).toBe(false);
+    expect(result.decision.status).toBe('blocked');
+    expect(result.decision.reasonCodes).toContain('OFFER_EXPIRED');
   });
 });

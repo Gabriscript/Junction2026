@@ -14,7 +14,7 @@ import type {
 } from './contract';
 import { addDays, todayIso } from './llm';
 
-/** The 7 gateway tools (PLAN.md section 6) plus the JWKS the gateway publishes at /.well-known/jwks.json. */
+/** The 7 gateway tools (PLAN.md section 6). Verification keys are not part of it: they come from the agent's own trust config. */
 export interface GatewayClient {
   searchProducts(input: SearchProductsInput): Promise<Product[]>;
   getOffers(input: GetOffersInput): Promise<SignedOffer[]>;
@@ -23,7 +23,6 @@ export interface GatewayClient {
   rejectOrder(input: ApprovalInput): Promise<Order>;
   getOrder(input: { order_id: string }): Promise<Order>;
   explain(input: { order_id: string }): Promise<Explanation>;
-  getJwks(): Promise<JSONWebKeySet>;
 }
 
 interface FixtureProduct extends Product {
@@ -74,17 +73,20 @@ const FIXTURE: FixtureProduct[] = [
 ];
 
 const OFFER_TTL_MS = 15 * 60_000;
+export const MOCK_ISSUER = 'mock-gateway';
 const VAT_FOOD = 13.5;
 
 export interface MockGatewayOptions {
   now?: () => Date;
   autoApproveLimit?: number; // EUR ex VAT, stands in for the buyer mandate
+  offerTtlMs?: number;
 }
 
 /** In-memory stand-in for the Aimo gateway. Offers are really signed (ES256), so verification is real. */
 export class MockGateway implements GatewayClient {
   private readonly now: () => Date;
   private readonly autoApproveLimit: number;
+  private readonly offerTtlMs: number;
   private readonly keys = generateKeyPair('ES256');
   private readonly offers = new Map<string, Offer>();
   private readonly orders = new Map<string, Order>();
@@ -92,8 +94,10 @@ export class MockGateway implements GatewayClient {
   constructor(options: MockGatewayOptions = {}) {
     this.now = options.now ?? (() => new Date());
     this.autoApproveLimit = options.autoApproveLimit ?? 5000;
+    this.offerTtlMs = options.offerTtlMs ?? OFFER_TTL_MS;
   }
 
+  /** The keys the mock "publishes". Read once at setup to build the agent's trust config, never during a run. */
   async getJwks(): Promise<JSONWebKeySet> {
     const jwk = await exportJWK((await this.keys).publicKey);
     return { keys: [{ ...jwk, kid: 'mock-1', alg: 'ES256', use: 'sig' }] };
@@ -138,8 +142,8 @@ export class MockGateway implements GatewayClient {
         origin: product.countryOfOrigin ?? null,
         labels: product.labels,
         validFrom: now.toISOString(),
-        validUntil: new Date(now.getTime() + OFFER_TTL_MS).toISOString(),
-        issuer: 'mock-gateway',
+        validUntil: new Date(now.getTime() + this.offerTtlMs).toISOString(),
+        issuer: MOCK_ISSUER,
         issuedAt: now.toISOString(),
       };
       const jws = await new CompactSign(new TextEncoder().encode(JSON.stringify(payload)))

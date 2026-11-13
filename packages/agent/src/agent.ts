@@ -2,7 +2,7 @@ import { Product, type Decision, type Offer, type Order, type ReasonCode, type S
 import type { GatewayClient } from './gateway';
 import { extractNeed, type LLMProvider } from './llm';
 import { packMath, packSizeOf, type PackPlan } from './packMath';
-import { verifyOffer } from './verify';
+import { offerIsCurrent, verifyOffer, type Trust } from './verify';
 
 export interface TraceStep {
   action: string;
@@ -29,7 +29,10 @@ export type SelectOffer = (candidates: Candidate[], need: StructuredNeed) => Can
 export interface AgentDeps {
   llm: LLMProvider;
   gateway: GatewayClient;
-  now: Date;
+  /** Read again at every time-sensitive step: a run can outlive an offer. */
+  now: () => Date;
+  /** Trusted offer issuer and its keys. From configuration, never from `gateway`. */
+  trust: Trust;
   mandate?: unknown;
   /** Extension point for step 8 (ranking, substitution, partial fill). Default: cheapest total. */
   select?: SelectOffer;
@@ -57,7 +60,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   const step = (action: string, input: string, output: string) => trace.push({ action, input, output });
   const rejected: RejectedOffer[] = [];
 
-  const extraction = await extractNeed(text, deps.llm, now);
+  const extraction = await extractNeed(text, deps.llm, now());
   const need = extraction.need;
   step(
     'parse_need',
@@ -89,7 +92,6 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   const offers: unknown[] = await gateway.getOffers(offersInput);
   step('get_offers', JSON.stringify(offersInput), `${offers.length} signed offers`);
 
-  const jwks = await gateway.getJwks();
   const candidates: Candidate[] = [];
   for (const raw of offers) {
     const label = { offerId: String((raw as any)?.offer?.offerId ?? 'unknown'), productId: String((raw as any)?.offer?.productId ?? 'unknown') };
@@ -99,9 +101,9 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
       step('verify_offer', input, `rejected ${reasonCode}: ${detail}`);
     };
 
-    const verified = await verifyOffer(raw, jwks, now);
+    const verified = await verifyOffer(raw, deps.trust, now());
     if (!verified.ok) {
-      reject(verified.reasonCode, verified.reasonCode === 'OFFER_EXPIRED' ? 'validUntil has passed' : 'signature or signed fields do not match');
+      reject(verified.reasonCode, verified.reasonCode === 'OFFER_EXPIRED' ? 'outside its validity window' : 'signature or signed fields do not match');
       continue;
     }
     const offer = verified.offer;
@@ -132,6 +134,12 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   if (!chosen) return stop(`${candidates.length} usable offers`);
   step('select_offer', `${candidates.length} usable offers`, `${chosen.offer.offerId}: ${chosen.product.name}, ${eur(chosen.total)} ex VAT`);
   step('pack_math', `${need.quantity} ${need.unit}, pack size ${chosen.pack.packSize} ${need.unit}`, chosen.pack.note);
+
+  // time has passed since verification: the offer must still be valid at the moment of ordering
+  if (!offerIsCurrent(chosen.offer, now())) {
+    rejected.push({ offerId: chosen.offer.offerId, productId: chosen.offer.productId, reasonCode: 'OFFER_EXPIRED' });
+    return stop(`${chosen.offer.offerId} is no longer valid`);
+  }
 
   const proposal = { offer_ids: [chosen.offer.offerId], quantities: [chosen.pack.packs], mandate: deps.mandate };
   const order = await gateway.proposeOrder(proposal);
