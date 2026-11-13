@@ -3,3 +3,6 @@ export * from './config.js';
 export * from './catalogue/project.js';
 export * from './catalogue/store.js';
 export * from './catalogue/allergens.js';
+export * from './aimo/client.js';
+export * from './trust/keys.js';
+export * from './trust/offers.js';
