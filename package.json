@@ -1,0 +1,28 @@
+{
+  "name": "junction2026",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Valio Aimo \"Trusted Trade Agents\" — gateway (REST + MCP), buyer agent, approval UI and shared contract.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/shared packages/gateway packages/agent && npm run build -w packages/ui",
+    "build:shared": "tsc -b packages/shared",
+    "typecheck": "tsc -b packages/shared packages/gateway packages/agent && npm run typecheck -w packages/ui",
+    "test": "npm run build:shared && vitest run",
+    "test:watch": "npm run build:shared && vitest",
+    "dev:ui": "npm run dev -w packages/ui",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "~5.9.3",
+    "vitest": "^5.1.0"
+  }
+}
