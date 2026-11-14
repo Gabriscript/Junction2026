@@ -30,7 +30,7 @@ export function ProductPhoto({ productId, name, size = 64 }: { productId?: strin
   );
 }
 
-const packs = (quantity: number, unit: string) => {
+export const packs = (quantity: number, unit: string) => {
   const name = UNIT_CODE_NAMES[unit as keyof typeof UNIT_CODE_NAMES];
   return `${quantity.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} × ${name ?? unit}`;
 };

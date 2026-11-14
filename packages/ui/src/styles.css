@@ -66,7 +66,7 @@ code, .hashes { font-family: var(--mono); font-size: 0.875rem; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 60px; padding-inline: 16px; background: var(--shell); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.125rem; letter-spacing: -0.01em; }
 .brand-logo { display: block; width: 96px; height: auto; }
-.brand-name { color: var(--ink-soft); font-size: 0.875rem; font-weight: 400; }
+.brand-name { color: var(--accent); font-family: var(--font-head); font-size: 1.25rem; font-weight: 700; line-height: 1; letter-spacing: -0.01em; } /* Mikko in the logo blue and heading face, smaller than the Aimo mark */
 .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--surface); }
 .crumbs { display: none; }
 .who { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.9375rem; }
@@ -183,6 +183,23 @@ section + section, .card + .card, section + .card { margin-top: 24px; }
 
 .events li > * + * { margin-top: 4px; }
 .hashes { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--ink-soft); }
+/* Audit timeline: one coloured dot per outcome, the sentence large, detail and meta smaller, proof folded away. */
+.ev-day + .ev-day { margin-top: 24px; }
+.ev-day-title { margin: 0 0 12px; font-family: var(--font); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.ev { --tone: var(--accent); --tone-bg: var(--accent-soft); position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; padding-bottom: 20px; }
+.ev-ok { --tone: var(--ok); --tone-bg: var(--ok-bg); }
+.ev-warn { --tone: var(--warn); --tone-bg: var(--warn-bg); }
+.ev-stop { --tone: var(--stop); --tone-bg: var(--stop-bg); }
+.ev:not(:last-child)::before { content: ''; position: absolute; left: 17px; top: 38px; bottom: 2px; width: 2px; background: var(--line); }
+.ev-dot { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--tone-bg); color: var(--tone); }
+.ev-body { display: grid; gap: 4px; padding-top: 6px; }
+.ev-title { font-size: 1.0625rem; font-weight: 700; line-height: 1.35; color: var(--ink); }
+.ev-warn .ev-title, .ev-stop .ev-title { color: var(--tone); }
+.ev-detail { font-size: 0.9375rem; color: var(--ink); }
+.ev-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 0.8125rem; color: var(--ink-soft); }
+.ev-meta time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ev-proof summary { width: fit-content; font-size: 0.75rem; color: var(--ink-soft); cursor: pointer; }
+.ev-proof .hashes, .ev-raw { margin-top: 4px; font-size: 0.75rem; color: var(--ink-soft); }
 
 /* tables */
 .table-wrap { overflow-x: auto; }
@@ -442,6 +459,15 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .switch[aria-checked='true'] .switch-knob { transform: translateX(20px); }
 .ask-me { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--ink-soft); font-size: 0.875rem; white-space: nowrap; cursor: pointer; }
 .ask-me input { width: 18px; height: 18px; accent-color: var(--accent); }
+.ap-when { color: var(--accent); font-size: 0.8125rem; font-weight: 600; }
+.ap-off .photo, .ap-off .compact-text, .ap-off .compact-price { opacity: 0.45; }
+.ap-off .compact-price { text-decoration: line-through; }
+@media (max-width: 639.98px) {
+  .autopilot .compact-line { flex-wrap: wrap; row-gap: 0; }
+  .autopilot .compact-text { flex-basis: calc(100% - 60px); }
+  .autopilot .compact-price { margin-left: 60px; }
+  .autopilot .ask-me { margin-left: auto; }
+}
 .order-card.compact { display: grid; gap: 12px; }
 .signed-note { font-size: 0.875rem; }
 .ordered-total { display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid var(--line); }

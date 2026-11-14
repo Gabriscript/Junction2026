@@ -136,7 +136,8 @@ test('chat: the first Enter reads back and flags the slips, nothing is ordered u
   fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
   expect(await screen.findByText(/Sent\. Order ord-1004/)).toBeTruthy();
   const order = (await api.listOrders()).at(-1)!;
-  expect(order.lines.find((l) => l.productId === '463335')).toMatchObject({ quantity: 5000, unit: 'L' });
+  // the cart buys whole packs: 5,000 L of milk = 5,000 × 1 L cartons at the real price
+  expect(order.lines.find((l) => l.productId === '463335')).toMatchObject({ quantity: 5000, unit: 'ST', unitPrice: 1.4 });
 });
 
 test('chat: one-tap fixes and the attached menu, then the order goes out corrected', async () => {
@@ -265,6 +266,9 @@ test('autopilot: switching it on sends the usual items due this Monday, minus th
   const sent = orders.at(-1)!;
   expect(sent.requestText).toMatch(/^Usual order for Mon 16 Nov: .*mozzarella/);
   expect(sent.requestText).not.toMatch(/milk/);
+  // the sent order is the cart the card showed: whole 2.5 kg bags at the real price, same total incl. VAT
+  expect(sent.lines.find((l) => l.productId === '463383')).toMatchObject({ quantity: 16, unit: 'BAG', unitPrice: 19.66 });
+  expect(within(card).getByText(/7 items/).textContent).toContain(eur(sent.totals.gross));
 });
 
 test("a substitute line in the compact card carries a flag with Mikko's reason", () => {

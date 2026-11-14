@@ -3,10 +3,10 @@ import { useState } from 'react';
 import type { GatewayApi } from '../api';
 import type { UiOrder } from '../contract';
 import { history, parLevels, THIS_MONDAY, type WeekOrder } from '../kitchen';
-import { DEMO_UNIT_PRICES, FALLBACK_UNIT_PRICE } from '../mockData';
-import { AIMO_PRODUCTS } from '../aimoProducts';
+import { totalsFromNet } from '@junction/shared';
+import { toPacks } from '../aimoProducts';
 import { eur, Icon, StatusBadge } from '../ui';
-import { ProductPhoto } from './Compact';
+import { packs, ProductPhoto } from './Compact';
 
 const rhythm = (every: number) => (every === 1 ? 'weekly' : every === 4 ? 'monthly' : `every ${every} weeks`);
 const round = (n: number) => (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10);
@@ -14,9 +14,24 @@ const addWeeks = (monday: string, n: number) => new Date(Date.parse(`${monday}T0
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const label = (item: string) => item.charAt(0).toUpperCase() + item.slice(1);
 
-/** One row per usual item: median quantity, how often, next delivery (this Monday if it is due). */
+/**
+ * One row per usual item: median quantity, how often, next delivery (this Monday if it is due), and the cart line:
+ * whole packs at the real Aimo price, gross incl. VAT the same way an order line counts it.
+ */
 const USUALS = [...parLevels(history)]
-  .map(([item, p]) => ({ item, quantity: round(p.median), unit: p.unit, every: p.every, next: addWeeks(THIS_MONDAY, Math.max(0, p.every - p.weeksSince)) }))
+  .map(([item, p]) => {
+    const quantity = round(p.median);
+    const cart = toPacks(item, quantity);
+    return {
+      item,
+      quantity,
+      unit: p.unit,
+      every: p.every,
+      next: addWeeks(THIS_MONDAY, Math.max(0, p.every - p.weeksSince)),
+      cart,
+      gross: cart ? totalsFromNet(cart.packs * cart.product.price, 13.5).gross : 0,
+    };
+  })
   .sort((a, b) => a.every - b.every);
 
 export function Autopilot({ api }: { api: GatewayApi }) {
@@ -25,8 +40,8 @@ export function Autopilot({ api }: { api: GatewayApi }) {
   const [sent, setSent] = useState<UiOrder>();
   const [error, setError] = useState('');
   const due = USUALS.filter((u) => u.next === THIS_MONDAY && !askMe.has(u.item));
-  // shortcut: estimate from the demo unit prices; the order itself carries Valio Aimo's signed prices.
-  const net = due.reduce((s, u) => s + Math.round(u.quantity * (DEMO_UNIT_PRICES[u.item] ?? FALLBACK_UNIT_PRICE) * 100), 0) / 100;
+  // Aimo price API answer for 16 Nov; the order itself carries the prices Valio Aimo signs at send time.
+  const gross = due.reduce((s, u) => s + Math.round(u.gross * 100), 0) / 100;
 
   const toggle = async () => {
     setOn(!on);
@@ -70,7 +85,7 @@ export function Autopilot({ api }: { api: GatewayApi }) {
       <p className="ap-next">
         <strong>Next delivery {day(THIS_MONDAY)}</strong>
         <span className="muted">
-          {due.length} items · ≈ <span className="num">{eur(net)}</span> excl. VAT
+          {due.length} items · <span className="num">{eur(gross)}</span> incl. VAT
         </span>
       </p>
       <p className="ap-status" role="status">
@@ -92,14 +107,16 @@ export function Autopilot({ api }: { api: GatewayApi }) {
 
       <ul className="compact-lines" aria-label="Usual items">
         {USUALS.map((u) => (
-          <li key={u.item} className="compact-line">
-            <ProductPhoto productId={AIMO_PRODUCTS[u.item]?.productId} name={u.item} size={40} />
+          <li key={u.item} className={askMe.has(u.item) ? 'compact-line ap-off' : 'compact-line'}>
+            <ProductPhoto productId={u.cart?.product.productId} name={u.item} size={48} />
             <div className="compact-text">
-              <strong>{label(u.item)}</strong>
-              <span className="muted">
-                {u.quantity} {u.unit} · {rhythm(u.every)} · {u.next === THIS_MONDAY ? 'due now' : `next ${day(u.next)}`}
+              <strong>{u.cart?.product.name ?? label(u.item)}</strong>
+              <span className="muted">{u.cart ? `${packs(u.cart.packs, u.cart.product.salesUnit)} · ${eur(u.cart.product.price)}` : `${u.quantity} ${u.unit}`}</span>
+              <span className="ap-when">
+                {label(rhythm(u.every))} · {u.next === THIS_MONDAY ? 'due now' : `next ${day(u.next)}`}
               </span>
             </div>
+            {u.cart && <span className="compact-price">{eur(u.gross)}</span>}
             <label className="ask-me">
               <input type="checkbox" aria-label={`Ask me before ordering ${u.item}`} checked={askMe.has(u.item)} onChange={() => flip(u.item)} />
               Ask me

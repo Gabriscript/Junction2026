@@ -1,7 +1,7 @@
 // Synthetic demo data for the three demo scenes: the scripted orders use 99xxxx ids, outside the real Aimo range,
 // like the shared fixtures. Orders placed from the chat use real Aimo products (aimoProducts.ts).
 import { totalsFromNet, type Actor, type AuditEvent, type AuditVisibility, type OrderLine, type Totals } from '@junction/shared';
-import { AIMO_PRODUCTS } from './aimoProducts';
+import { AIMO_PRODUCTS, toPacks } from './aimoProducts';
 import type { UiOrder } from './contract';
 
 export const gatewayActor: Actor = { type: 'gateway', id: 'gateway', name: 'Aimo gateway' };
@@ -205,27 +205,27 @@ export const rogueOrder: UiOrder = {
   ],
 };
 
-// EUR per unit, excl. VAT. milk is the real Aimo price API answer for 463335 (gateway fixture price.json, 2026-11-14);
-// the rest are synthetic until the price API is queried for them. Unknown items get the fallback.
-export const DEMO_UNIT_PRICES: Record<string, number> = {
-  milk: 1.4, mozzarella: 9.8, tomatoes: 2.4, fries: 2.1, basil: 24, flour: 0.95, 'olive oil': 7.5, salt: 0.6, wurstel: 8.9,
-};
+// EUR per kitchen unit (L, KG), excl. VAT, for the synthetic history charts: the real Aimo price per pack
+// (aimoProducts.ts) divided by the pack size. Unknown items get the fallback.
+export const DEMO_UNIT_PRICES: Record<string, number> = Object.fromEntries(Object.entries(AIMO_PRODUCTS).map(([item, p]) => [item, p.price / p.packSize]));
 export const FALLBACK_UNIT_PRICE = 5;
 
 /** The order the mock "agent" places for a week the chef confirmed in the chat: one line per item, auto-approved. */
 export function weekOrder(orderId: string, lines: { item: string; quantity: number; unit: string }[], requestText: string, at: string): UiOrder {
-  const orderLines = lines.map((l, i) =>
-    line({
+  // known products go in as whole packs at the real Aimo price, like the real agent's cart
+  const orderLines = lines.map((l, i) => {
+    const cart = toPacks(l.item, l.quantity);
+    return line({
       lineId: `ln-${i + 1}`,
       offerId: `off-${orderId}-${i + 1}`,
-      productId: AIMO_PRODUCTS[l.item]?.productId ?? String(990300 + i),
-      productName: AIMO_PRODUCTS[l.item]?.name ?? l.item.charAt(0).toUpperCase() + l.item.slice(1),
-      quantity: l.quantity,
-      unit: l.unit,
-      unitPrice: DEMO_UNIT_PRICES[l.item] ?? FALLBACK_UNIT_PRICE,
+      productId: cart?.product.productId ?? String(990300 + i),
+      productName: cart?.product.name ?? l.item.charAt(0).toUpperCase() + l.item.slice(1),
+      quantity: cart?.packs ?? l.quantity,
+      unit: cart?.product.salesUnit ?? l.unit,
+      unitPrice: cart?.product.price ?? FALLBACK_UNIT_PRICE,
       availableDate: '2026-11-16',
-    }),
-  );
+    });
+  });
   return {
     orderId,
     agentId: 'agent:aurora-kitchen',
