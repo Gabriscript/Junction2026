@@ -16,6 +16,7 @@ import {
 import { CompactSign, exportJWK, generateKeyPair, type JSONWebKeySet } from 'jose';
 import { validateInput, type GatewayClient } from './gateway-client.js';
 import { addDays, todayIso } from './llm.js';
+import { allowedSubstitute } from './substitute.js';
 
 interface FixtureProduct {
   product: Product;
@@ -182,6 +183,13 @@ export class MockGateway implements GatewayClient {
       const lineId = `line_${index + 1}`;
       if (Date.parse(offer.validUntil) <= now.getTime()) reasons.push({ code: 'OFFER_EXPIRED', lineId, message: `Offer ${offer.offerId} expired` });
       if (line.quantity > (offer.availableQuantity ?? 0)) reasons.push({ code: 'PARTIAL_AVAILABILITY', lineId, message: `${offer.availableQuantity ?? 0} of ${line.quantity} available` });
+      if (line.substituteFor) {
+        const original = FIXTURE.find((f) => f.product.id === line.substituteFor)?.product;
+        const product = FIXTURE.find((f) => f.product.id === offer.productId)?.product;
+        if (!original || !product || !allowedSubstitute(input.mandate.substitutionPolicy, original, product)) {
+          reasons.push({ code: 'SUBSTITUTION_OUTSIDE_PREFS', lineId, message: `${offer.productName} substitutes ${line.substituteFor} outside policy "${input.mandate.substitutionPolicy}"` });
+        }
+      }
       return {
         lineId,
         offerId: offer.offerId,

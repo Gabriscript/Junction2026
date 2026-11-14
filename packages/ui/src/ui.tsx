@@ -17,7 +17,7 @@ export const time = (ts: string) =>
 export const shortHash = (hash: string) => hash.slice(0, 8);
 
 /** Agent rationale, then the gateway's case-specific reason messages. */
-export const whyText = (order: UiOrder) => [order.rationale, ...order.decision.reasons.map((r) => r.message)].filter((t): t is string => !!t);
+export const whyText = (order: UiOrder) => [...(order.rationale?.split('\n') ?? []), ...order.decision.reasons.map((r) => r.message)].filter((t): t is string => !!t);
 
 type Tone = 'ok' | 'warn' | 'stop';
 
