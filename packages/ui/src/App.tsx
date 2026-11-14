@@ -86,7 +86,7 @@ export function App({ api }: { api: GatewayApi }) {
               <a href="/shop.html" aria-label="Back to the Valio Aimo webshop">
                 <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
               </a>
-              <span className="brand-name">Trusted Trade</span>
+              <span className="brand-name">Mikko</span>
             </p>
             <button
               type="button"
@@ -131,23 +131,15 @@ export function App({ api }: { api: GatewayApi }) {
           <header className="topbar">
             <a className="brand brand-top" href="/shop.html" aria-label="Back to the Valio Aimo webshop">
               <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
-              <span className="brand-name">Trusted Trade</span>
+              <span className="brand-name">Mikko</span>
             </a>
-            <p className="crumbs">
-              {orderId ? (
-                <>
-                  <a href="#/orders">{current.label}</a>
-                  <span aria-hidden="true">/</span>
-                  <span aria-current="page">Order {orderId}</span>
-                </>
-              ) : (
-                <>
-                  <span>Trusted Trade</span>
-                  <span aria-hidden="true">/</span>
-                  <span aria-current="page">{current.label}</span>
-                </>
-              )}
-            </p>
+            {orderId && (
+              <p className="crumbs">
+                <a href="#/orders">{current.label}</a>
+                <span aria-hidden="true">/</span>
+                <span aria-current="page">Order {orderId}</span>
+              </p>
+            )}
             <p className="who">
               <span className="avatar" aria-hidden="true">
                 {initials(KITCHEN)}
@@ -156,7 +148,7 @@ export function App({ api }: { api: GatewayApi }) {
             </p>
           </header>
           <main id="main" tabIndex={-1} ref={main}>
-            {demo && <p className="demo-note">Demo mode: mock gateway with synthetic data.</p>}
+            {demo && <p className="demo-note">Demo mode</p>}
             {orderId ? (
               <OrderDetail api={api} orderId={orderId} />
             ) : section === 'audit' ? (

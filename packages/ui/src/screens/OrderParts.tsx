@@ -3,19 +3,17 @@ import { useId, useState, type FormEvent } from 'react';
 import type { GatewayApi } from '../api';
 import { UNIT_CODE_NAMES, type Actor } from '@junction/shared';
 import type { UiOrder } from '../contract';
-import { eur, ReasonChips, substituteReasons, vatPercent, whyText } from '../ui';
+import { eur, ReasonChips, whyText } from '../ui';
 
 // shortcut: no sign-in in the prototype, add the real approver identity with auth
 export const APPROVER: Actor = { type: 'human', id: 'user:demo.approver', name: 'Demo approver' };
 
 export function Cart({ order }: { order: UiOrder }) {
   const { totals } = order;
-  const reasons = substituteReasons(order);
   return (
     <div className="cart">
       <ul className="lines" aria-label="Cart lines">
         {order.lines.map((line) => {
-          const unverified = order.decision.reasons.some((r) => r.code === 'UNVERIFIED_STOCK' && r.lineId === line.lineId);
           const unitName = UNIT_CODE_NAMES[line.unit];
           return (
             <li key={line.lineId}>
@@ -24,18 +22,11 @@ export function Cart({ order }: { order: UiOrder }) {
                 <span className="num">{eur(line.totals.net)}</span>
               </div>
               <p className="muted">
-                {line.quantity} × {line.unit}
-                {unitName && ` (${unitName})`} at {eur(line.unitPrice)} each
-              </p>
-              <p className="muted">
-                VAT {vatPercent(line.vatRate)}: {eur(line.totals.vat)}
-                {', '}
-                {unverified ? 'terminal stock, quantity not verified' : 'stock verified'}
+                {line.quantity} × {unitName ?? line.unit} · {eur(line.unitPrice)} each
               </p>
               {line.substituteFor && (
                 <p className="substitute">
-                  <strong>Substitute for {order.lines.find((l) => l.productId === line.substituteFor)?.productName ?? `product ${line.substituteFor}`}.</strong>{' '}
-                  {reasons.get(line.lineId)?.replace(/^./, (c) => c.toUpperCase())}
+                  <strong>Substitute for {order.lines.find((l) => l.productId === line.substituteFor)?.productName ?? `product ${line.substituteFor}`}.</strong>
                 </p>
               )}
             </li>
@@ -51,10 +42,6 @@ export function Cart({ order }: { order: UiOrder }) {
           <dt>VAT</dt>
           <dd className="num">{eur(totals.vat)}</dd>
         </div>
-        <div className="grand">
-          <dt>Total incl. VAT</dt>
-          <dd className="num">{eur(totals.gross)}</dd>
-        </div>
       </dl>
     </div>
   );
@@ -67,8 +54,8 @@ export function DecisionSummary({ order, withAlternatives = true }: { order: UiO
   return (
     <>
       <ReasonChips codes={order.decision.reasonCodes} />
-      <details className="more">
-        <summary>Why the agent chose this</summary>
+      <details className="more" open={order.status === 'pending_approval'}>
+        <summary>Why Mikko chose this</summary>
         {whyText(order).map((text, i) => (
           <p key={i} className="why">
             {text}

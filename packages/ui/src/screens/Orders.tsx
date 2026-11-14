@@ -1,9 +1,10 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { AIMO_PRODUCTS } from '../aimoProducts';
 import type { GatewayApi } from '../api';
-import { history, isoWeek, KITCHEN, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
+import { history, isoWeek, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
 import { DEMO_UNIT_PRICES, FALLBACK_UNIT_PRICE } from '../mockData';
 import { eur, Icon, StatusBadge, time, useLive } from '../ui';
+import { Autopilot } from './Autopilot';
 
 const AURORA = '300'; // the signed-in kitchen's customerRef in the demo data
 const pars = [...parLevels(history)].sort(([, a], [, b]) => a.every - b.every || b.median - a.median);
@@ -16,10 +17,7 @@ const weeks = history.map((w) => ({
   net: w.orders.reduce((s, o) => s + Math.round(spendOf(o) * 100), 0) / 100,
 }));
 const peak = Math.max(...weeks.map((w) => w.net));
-const average = weeks.reduce((s, w) => s + w.net, 0) / weeks.length;
-const due = pars.filter(([, p]) => p.weeksSince >= p.every);
 const WINDOW = 4; // weeks on screen; the arrows page back through the 12 the review uses
-const DUE_SHOWN = 5; // what fits the card beside the chart; the rest open with "View full list"
 
 const day = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -38,14 +36,8 @@ function WeeklySpend() {
           <h2 id="spend-title" className="card-title">
             Weekly spend
           </h2>
-          <p className="muted">
-            Weeks {shown[0]!.week} to {shown.at(-1)!.week}, excl. VAT
-          </p>
+          <p className="muted">excl. VAT</p>
         </div>
-        <p className="chart-avg">
-          <span className="muted">12-week average</span>
-          <strong className="num">{eur(average)}</strong>
-        </p>
       </div>
       <div className="bars-row">
         <button type="button" className="page-btn" aria-label="Earlier weeks" disabled={end <= WINDOW} onClick={() => setEnd(end - WINDOW)}>
@@ -97,16 +89,11 @@ function WeeklySpend() {
 export function Orders({ api }: { api: GatewayApi }) {
   const { data: orders, error } = useLive(api, () => api.listOrders(), 'my-orders');
   const mine = (orders ?? []).filter((o) => o.customerRef === AURORA).reverse();
-  const [allDue, setAllDue] = useState(false);
-  const dueId = useId();
-  const more = due.length > DUE_SHOWN;
 
   return (
     <>
       <header className="page-head">
         <h1>Orders</h1>
-        <p className="lead">What you order and what is due.</p>
-        <p className="muted">{KITCHEN}. Demo data.</p>
       </header>
       {error && (
         <p className="error" role="alert">
@@ -114,57 +101,17 @@ export function Orders({ api }: { api: GatewayApi }) {
         </p>
       )}
 
-      <div className="dash-grid">
-        <section className="stat stat-main" aria-labelledby="due-title">
-          <p className="stat-title">
-            <span className="tile">
-              <Icon name="review" />
-            </span>
-            <span>
-              <strong id="due-title">Due this week</strong>
-              <span>Delivery Mon 16 Nov</span>
-            </span>
-          </p>
-          <p className="stat-value">
-            {more ? (
-              <button type="button" className="stat-link" aria-expanded={allDue} aria-controls={dueId} onClick={() => setAllDue(true)}>
-                {due.length} items
-              </button>
-            ) : (
-              `${due.length} items`
-            )}
-          </p>
-          <ul id={dueId} className="due-list">
-            {(allDue ? due : due.slice(0, DUE_SHOWN)).map(([item]) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          {more && (
-            <button type="button" className="due-more" aria-expanded={allDue} aria-controls={dueId} onClick={() => setAllDue(!allDue)}>
-              {allDue ? 'Show fewer' : `View full list (${due.length})`}
-            </button>
-          )}
-          <p className="stat-foot">
-            <a className="on-accent" href="#/new">
-              Order them in the chat
-            </a>
-          </p>
-        </section>
-
-        <WeeklySpend />
-      </div>
-
-      <Heatmap />
+      <Autopilot api={api} />
 
       <section className="card" aria-labelledby="mine-title">
-        <h2 id="mine-title" className="card-title">
+        <h2 id="mine-title" className="visually-hidden">
           Recent orders
         </h2>
         {orders && mine.length === 0 && <p className="empty">No orders yet.</p>}
         {mine.length > 0 && (
           <div className="table-wrap">
             <table className="orders">
-              <thead>
+              <thead className="orders-head">
                 <tr>
                   <th scope="col">Order</th>
                   <th scope="col" className="hide-sm">
@@ -182,7 +129,10 @@ export function Orders({ api }: { api: GatewayApi }) {
                     <th scope="row">
                       <a href={`#/orders/${order.orderId}`}>{order.requestText}</a>
                       <span className="muted">
-                        {order.orderId}, {order.lines.length} lines<span className="show-sm">, {eur(order.totals.gross)}</span>
+                        <span className="orders-id">
+                          {order.orderId}, {order.lines.length} lines
+                        </span>
+                        <span className="show-sm">{eur(order.totals.gross)}</span>
                       </span>
                     </th>
                     <td className="hide-sm muted">{time(order.createdAt)}</td>
@@ -197,6 +147,11 @@ export function Orders({ api }: { api: GatewayApi }) {
           </div>
         )}
       </section>
+
+      <div className="dash-grid">
+        <WeeklySpend />
+        <Heatmap />
+      </div>
     </>
   );
 }

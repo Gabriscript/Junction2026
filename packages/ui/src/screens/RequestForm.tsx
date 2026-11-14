@@ -9,7 +9,7 @@ import { CaptureBar } from './Capture';
 
 const LINE_STATUS: Record<MenuResult['lines'][number]['status'], { label: string; tone: 'ok' | 'warn' | 'stop' }> = {
   auto_approved: { label: 'Ordered', tone: 'ok' },
-  needs_approval: { label: 'Needs your approval', tone: 'warn' },
+  needs_approval: { label: 'Needs your OK', tone: 'warn' },
   blocked: { label: 'Blocked', tone: 'stop' },
   not_ordered: { label: 'Not ordered', tone: 'stop' },
 };
@@ -66,9 +66,7 @@ const day = (iso: string) =>
 function MenuPlanView({ result, title }: { result: MenuResult; title?: string }) {
   const { plan, lines } = result;
   const hasPlan = plan.dishes.length > 0;
-  const ordered = lines.filter((l) => l.status === 'auto_approved').length;
   const waiting = lines.filter((l) => l.status === 'needs_approval').length;
-  const stopped = lines.length - ordered - waiting;
   return (
     <>
       {title && <h2 className="result-title">{title}</h2>}
@@ -90,7 +88,7 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
         {plan.unknownDishes.length > 0 && (
           <p className="notice">Please list the ingredients for: {plan.unknownDishes.join(', ')}</p>
         )}
-        <h3>What the assistant assumed</h3>
+        <h3>What Mikko assumed</h3>
         <ul className="menu-assumptions muted">
           {plan.assumptions.map((a) => (
             <li key={a}>{a}</li>
@@ -102,9 +100,6 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
       <section className="card" aria-labelledby="lines-h">
         <div className="card-head">
           <h2 id="lines-h">{hasPlan ? 'Shopping list' : 'Added to your order'}</h2>
-          <p className="muted">
-            {ordered} ordered automatically · {waiting} need you{stopped ? ` · ${stopped} not ordered` : ''}
-          </p>
         </div>
         <ul className="menu-lines">
           {lines.map((l) => {
@@ -116,19 +111,9 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
                   <strong className="menu-line-name">{l.name}</strong>
                   <span className="qty">{qty(l.quantity, l.unit)}</span>
                 </div>
-                <p className="muted">
-                  {l.product ?? 'No suitable product'}
-                  {l.packs !== undefined && l.unitPriceEur !== undefined && (
-                    <> · {packsText(l.packs, l.salesUnit)} × {eur(l.unitPriceEur)}</>
-                  )}
-                </p>
+                <p className="muted">{l.product ?? 'No suitable product'}</p>
                 <span className={`badge tone-${s.tone}`}>{s.label}</span>
                 <ReasonChips codes={l.reasonCodes as ReasonCode[]} />
-                {l.orderId && l.status !== 'auto_approved' && (
-                  <p>
-                    <a href={`#/orders/${l.orderId}`}>Review and decide</a>
-                  </p>
-                )}
               </li>
             );
           })}
@@ -198,34 +183,14 @@ export function RequestForm({ api }: { api: GatewayApi }) {
     }
   };
 
+  // One composer: a new request first, then corrections to the plan on screen (same delivery day).
+  const started = results.length > 0;
+  const [value, setValue] = started ? [followUp, setFollowUp] : [text, setText];
+  const shownError = started ? followError : error;
+
   return (
-    <>
-      <h1>New request</h1>
-      <p className="lead">Write or scan tonight's menu or reservation. The assistant plans the ingredients, orders what it may, and asks you about the rest.</p>
-      <form onSubmit={submit} noValidate className="request-form">
-        <label htmlFor="request-text">What do you need?</label>
-        <p className="muted" id="request-hint">
-          Example: Wednesday dinner, 10 people. Fusilli al pesto. Dessert: gelato vaniglia e cioccolato
-        </p>
-        <CaptureBar api={api} idPrefix="request" targetId="request-text" onText={(t, mode) => setText((prev) => (mode === 'append' && prev.trim() ? `${prev.trim()} ${t}` : t))} />
-        <textarea
-          id="request-text"
-          rows={5}
-          maxLength={2000}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          aria-describedby={error ? 'request-hint request-error' : 'request-hint'}
-          aria-invalid={error ? true : undefined}
-        />
-        {error && (
-          <p className="error" id="request-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button type="submit" className="btn primary" disabled={busy}>
-          {busy ? 'Planning and ordering...' : 'Send to assistant'}
-        </button>
-      </form>
+    <div className="new-order">
+      <h1 className={started || order ? 'visually-hidden' : 'new-order-greet'}>What do you need, chef?</h1>
 
       <div role="status" aria-live="polite">
         {results.map((r, i) => (
@@ -248,32 +213,33 @@ export function RequestForm({ api }: { api: GatewayApi }) {
         )}
       </div>
 
-      {results.length > 0 && (
-        <form onSubmit={sendFollowUp} noValidate className="request-form follow-up">
-          <label htmlFor="follow-text">Correction or new order</label>
-          <p className="muted" id="follow-hint">
-            Example: add 2 kg parmesan · also 1 kg mozzarella · or a new dish. Delivery stays the same day.
+      <form onSubmit={started ? sendFollowUp : submit} noValidate className="request-form composer-dock">
+        {shownError && (
+          <p className="error" id="request-error" role="alert">
+            {shownError}
           </p>
-          <CaptureBar api={api} idPrefix="follow" targetId="follow-text" onText={(t, mode) => setFollowUp((prev) => (mode === 'append' && prev.trim() ? `${prev.trim()} ${t}` : t))} />
+        )}
+        <label htmlFor="request-text" className="visually-hidden">
+          {started ? 'Correction or new order' : 'What do you need?'}
+        </label>
+        <CaptureBar
+          api={api}
+          hasText={!!value.trim()}
+          working={busy ? 'Planning and ordering…' : followBusy ? 'Ordering…' : undefined}
+          onText={(t, mode) => setValue((prev) => (mode === 'append' && prev.trim() ? `${prev.trim()} ${t}` : t))}
+        >
           <textarea
-            id="follow-text"
-            rows={2}
+            id="request-text"
+            rows={1}
             maxLength={2000}
-            value={followUp}
-            onChange={(e) => setFollowUp(e.target.value)}
-            aria-describedby={followError ? 'follow-hint follow-error' : 'follow-hint'}
-            aria-invalid={followError ? true : undefined}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Ask Mikko…"
+            aria-describedby={shownError ? 'request-error' : undefined}
+            aria-invalid={shownError ? true : undefined}
           />
-          {followError && (
-            <p className="error" id="follow-error" role="alert">
-              {followError}
-            </p>
-          )}
-          <button type="submit" className="btn primary" disabled={followBusy}>
-            {followBusy ? 'Ordering...' : 'Send to assistant'}
-          </button>
-        </form>
-      )}
-    </>
+        </CaptureBar>
+      </form>
+    </div>
   );
 }

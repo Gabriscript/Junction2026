@@ -74,6 +74,7 @@ const ICONS = {
   file: 'M7 3.5h7l4.5 4.5v12a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5zM13.5 3.5V8.5h5M9.5 13h5M9.5 16.5h5',
   orders: 'M5 19V11M10 19V5M15 19v-6M20 19V8M3.5 19.5h17',
   close: 'M7 7l10 10M17 7 7 17',
+  bolt: 'M13 3.5 5.5 13.5h6l-1 7 7.5-10h-6z',
   panel: 'M5 4.5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1zM9.5 4.5v15',
 } as const;
 export type IconName = keyof typeof ICONS;

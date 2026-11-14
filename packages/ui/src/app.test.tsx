@@ -5,6 +5,8 @@ import { App } from './App';
 import { auditChain } from '@junction/shared/fixtures';
 import { verifyChain } from './hash';
 import { eur, vatPercent } from './ui';
+import { auroraOrder } from './mockData';
+import { CompactLines } from './screens/Compact';
 
 async function go(hash: string) {
   await act(async () => {
@@ -134,7 +136,8 @@ test('chat: the first Enter reads back and flags the slips, nothing is ordered u
   fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
   expect(await screen.findByText(/Sent\. Order ord-1004/)).toBeTruthy();
   const order = (await api.listOrders()).at(-1)!;
-  expect(order.lines.find((l) => l.productId === '463335')).toMatchObject({ quantity: 5000, unit: 'L' });
+  // the cart buys whole packs: 5,000 L of milk = 5,000 × 1 L cartons at the real price
+  expect(order.lines.find((l) => l.productId === '463335')).toMatchObject({ quantity: 5000, unit: 'ST', unitPrice: 1.4 });
 });
 
 test('chat: one-tap fixes and the attached menu, then the order goes out corrected', async () => {
@@ -183,7 +186,7 @@ test('a substitute line shows what it replaces and the agent\'s reason', async (
   render(<App api={new MockGatewayApi()} />);
   await go('#/orders/ord-1000');
   const note = await screen.findByText(/Substitute for Lactose-free milk bag-in-box 10 L/);
-  expect(note.closest('p')?.textContent).toMatch(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/);
+  expect(screen.getByText(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/)).toBeTruthy();
 });
 
 test('the + menu closes on a click outside it and on Escape', async () => {
@@ -216,20 +219,6 @@ test('the sidebar collapses to icons, keeps link names and remembers the choice'
   expect(localStorage.getItem('side-collapsed')).toBe('0');
 });
 
-test('due this week shows a short bullet list; the count and "View full list" open all of it', async () => {
-  window.location.hash = '#/orders';
-  render(<App api={new MockGatewayApi()} />);
-  const card = (await screen.findByText('Due this week')).closest('section')!;
-  const shown = () => within(card).getAllByRole('listitem').length;
-  expect(shown()).toBe(5);
-  fireEvent.click(within(card).getByRole('button', { name: /^\d+ items$/ }));
-  expect(shown()).toBe(8);
-  fireEvent.click(within(card).getByRole('button', { name: 'Show fewer' }));
-  expect(shown()).toBe(5);
-  fireEvent.click(within(card).getByRole('button', { name: 'View full list (8)' }));
-  expect(shown()).toBe(8);
-});
-
 test('weekly spend shows 4 weeks, pages back through 12, and a picked week lists what was ordered', async () => {
   window.location.hash = '#/orders';
   render(<App api={new MockGatewayApi()} />);
@@ -246,4 +235,32 @@ test('weekly spend shows 4 weeks, pages back through 12, and a picked week lists
   fireEvent.click(within(chart).getByRole('button', { name: /Week 36/ }));
   expect(within(chart).getByText(/^Week 36, delivery/)).toBeTruthy();
   expect(within(chart).getByText('milk')).toBeTruthy();
+});
+
+test('autopilot: switching it on sends the usual items due this Monday, minus the ones marked Ask me', async () => {
+  const api = new MockGatewayApi();
+  window.location.hash = '#/orders';
+  render(<App api={api} />);
+  const card = (await screen.findByRole('switch', { name: 'Autopilot' })).closest('section')!;
+  expect(within(card).getByRole('switch', { name: 'Autopilot' }).getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(within(card).getByRole('checkbox', { name: /Ask me before ordering milk/ }));
+  const before = (await api.listOrders()).length;
+  fireEvent.click(within(card).getByRole('switch', { name: 'Autopilot' }));
+  expect(await within(card).findByText(/Sent by Mikko/)).toBeTruthy();
+  const orders = await api.listOrders();
+  expect(orders).toHaveLength(before + 1);
+  const sent = orders.at(-1)!;
+  expect(sent.requestText).toMatch(/^Usual order for Mon 16 Nov: .*mozzarella/);
+  expect(sent.requestText).not.toMatch(/milk/);
+  // the sent order is the cart the card showed: whole 2.5 kg bags at the real price, same total incl. VAT
+  expect(sent.lines.find((l) => l.productId === '463383')).toMatchObject({ quantity: 16, unit: 'BAG', unitPrice: 19.66 });
+  expect(within(card).getByText(/7 items/).textContent).toContain(eur(sent.totals.gross));
+});
+
+test("a substitute line in the compact card carries a flag with Mikko's reason", () => {
+  render(<CompactLines order={auroraOrder} />);
+  const flag = screen.getByRole('button', { name: 'Substitute' });
+  const tip = document.getElementById(flag.getAttribute('aria-describedby')!)!;
+  expect(tip.getAttribute('role')).toBe('tooltip');
+  expect(tip.textContent).toMatch(/^SubstituteOnly 40 of the 100 bag-in-box packs/);
 });
