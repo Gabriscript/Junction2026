@@ -51,7 +51,7 @@ function LineFlag({ title, text }: { title: string; text: string }) {
   );
 }
 
-/** One row per order line: photo, product, packs × signed unit price, line total, and a flag with the reason if Mikko is unsure. */
+/** One row per order line: photo, product, packs × signed unit price, and a flag with the reason if Mikko is unsure. */
 export function CompactLines({ order }: { order: UiOrder }) {
   const reasons = substituteReasons(order);
   return (
@@ -62,7 +62,7 @@ export function CompactLines({ order }: { order: UiOrder }) {
           <div className="compact-text">
             <strong>{line.productName}</strong>
             <span className="muted">
-              {packs(line.quantity, line.unit)} · {eur(line.unitPrice)}
+              {line.quantity.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} × {eur(line.unitPrice)}
             </span>
           </div>
           {line.substituteFor ? (
@@ -70,7 +70,6 @@ export function CompactLines({ order }: { order: UiOrder }) {
           ) : (
             !line.offerVerified && <LineFlag title="Price not verified" text="Valio Aimo's signature on this price did not check out." />
           )}
-          <span className="compact-price">{eur(line.totals.gross)}</span>
         </li>
       ))}
     </ul>
@@ -82,7 +81,7 @@ export function SignedPriceNote({ order }: { order: UiOrder }) {
   const verified = order.lines.every((l) => l.offerVerified);
   return (
     <p className="muted signed-note">
-      {verified ? '✓ Fixed price signed by Valio Aimo' : 'Price not verified'} · incl. VAT {eur(order.totals.gross)}
+      {verified ? '✓ Signed by Valio Aimo' : 'Price not verified'} · {eur(order.totals.gross)}
     </p>
   );
 }

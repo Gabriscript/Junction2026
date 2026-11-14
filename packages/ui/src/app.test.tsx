@@ -186,7 +186,7 @@ test('a substitute line shows what it replaces and the agent\'s reason', async (
   render(<App api={new MockGatewayApi()} />);
   await go('#/orders/ord-1000');
   const note = await screen.findByText(/Substitute for Lactose-free milk bag-in-box 10 L/);
-  expect(note.closest('p')?.textContent).toMatch(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/);
+  expect(screen.getByText(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/)).toBeTruthy();
 });
 
 test('the + menu closes on a click outside it and on Escape', async () => {
@@ -242,7 +242,7 @@ test('autopilot: switching it on sends the usual items due this Monday, minus th
   window.location.hash = '#/orders';
   render(<App api={api} />);
   const card = (await screen.findByRole('switch', { name: 'Autopilot' })).closest('section')!;
-  expect(within(card).getByText('Off. Nothing is ordered automatically.')).toBeTruthy();
+  expect(within(card).getByRole('switch', { name: 'Autopilot' }).getAttribute('aria-checked')).toBe('false');
   fireEvent.click(within(card).getByRole('checkbox', { name: /Ask me before ordering milk/ }));
   const before = (await api.listOrders()).length;
   fireEvent.click(within(card).getByRole('switch', { name: 'Autopilot' }));

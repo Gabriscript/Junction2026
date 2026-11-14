@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AIMO_PRODUCTS } from '../aimoProducts';
 import type { GatewayApi } from '../api';
-import { history, isoWeek, KITCHEN, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
+import { history, isoWeek, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
 import { DEMO_UNIT_PRICES, FALLBACK_UNIT_PRICE } from '../mockData';
 import { eur, Icon, StatusBadge, time, useLive } from '../ui';
 import { Autopilot } from './Autopilot';
@@ -17,7 +17,6 @@ const weeks = history.map((w) => ({
   net: w.orders.reduce((s, o) => s + Math.round(spendOf(o) * 100), 0) / 100,
 }));
 const peak = Math.max(...weeks.map((w) => w.net));
-const average = weeks.reduce((s, w) => s + w.net, 0) / weeks.length;
 const WINDOW = 4; // weeks on screen; the arrows page back through the 12 the review uses
 
 const day = (iso: string) =>
@@ -37,14 +36,8 @@ function WeeklySpend() {
           <h2 id="spend-title" className="card-title">
             Weekly spend
           </h2>
-          <p className="muted">
-            Weeks {shown[0]!.week} to {shown.at(-1)!.week}, excl. VAT
-          </p>
+          <p className="muted">excl. VAT</p>
         </div>
-        <p className="chart-avg">
-          <span className="muted">12-week average</span>
-          <strong className="num">{eur(average)}</strong>
-        </p>
       </div>
       <div className="bars-row">
         <button type="button" className="page-btn" aria-label="Earlier weeks" disabled={end <= WINDOW} onClick={() => setEnd(end - WINDOW)}>
@@ -101,8 +94,6 @@ export function Orders({ api }: { api: GatewayApi }) {
     <>
       <header className="page-head">
         <h1>Orders</h1>
-        <p className="lead">What you order.</p>
-        <p className="muted">{KITCHEN}. Demo data.</p>
       </header>
       {error && (
         <p className="error" role="alert">
@@ -112,20 +103,15 @@ export function Orders({ api }: { api: GatewayApi }) {
 
       <Autopilot api={api} />
 
-      <div className="dash-grid">
-        <Heatmap />
-        <WeeklySpend />
-      </div>
-
       <section className="card" aria-labelledby="mine-title">
-        <h2 id="mine-title" className="card-title">
+        <h2 id="mine-title" className="visually-hidden">
           Recent orders
         </h2>
         {orders && mine.length === 0 && <p className="empty">No orders yet.</p>}
         {mine.length > 0 && (
           <div className="table-wrap">
             <table className="orders">
-              <thead>
+              <thead className="orders-head">
                 <tr>
                   <th scope="col">Order</th>
                   <th scope="col" className="hide-sm">
@@ -143,7 +129,10 @@ export function Orders({ api }: { api: GatewayApi }) {
                     <th scope="row">
                       <a href={`#/orders/${order.orderId}`}>{order.requestText}</a>
                       <span className="muted">
-                        {order.orderId}, {order.lines.length} lines<span className="show-sm">, {eur(order.totals.gross)}</span>
+                        <span className="orders-id">
+                          {order.orderId}, {order.lines.length} lines
+                        </span>
+                        <span className="show-sm">{eur(order.totals.gross)}</span>
                       </span>
                     </th>
                     <td className="hide-sm muted">{time(order.createdAt)}</td>
@@ -158,6 +147,11 @@ export function Orders({ api }: { api: GatewayApi }) {
           </div>
         )}
       </section>
+
+      <div className="dash-grid">
+        <WeeklySpend />
+        <Heatmap />
+      </div>
     </>
   );
 }

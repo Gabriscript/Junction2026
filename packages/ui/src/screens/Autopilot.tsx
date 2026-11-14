@@ -82,12 +82,6 @@ export function Autopilot({ api }: { api: GatewayApi }) {
         </button>
       </div>
 
-      <p className="ap-next">
-        <strong>Next delivery {day(THIS_MONDAY)}</strong>
-        <span className="muted">
-          {due.length} items · <span className="num">{eur(gross)}</span> incl. VAT
-        </span>
-      </p>
       <p className="ap-status" role="status">
         {sent ? (
           <>
@@ -95,9 +89,7 @@ export function Autopilot({ api }: { api: GatewayApi }) {
           </>
         ) : on ? (
           'Mikko is sending the usual order…'
-        ) : (
-          'Off. Nothing is ordered automatically.'
-        )}
+        ) : null}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -105,28 +97,36 @@ export function Autopilot({ api }: { api: GatewayApi }) {
         </p>
       )}
 
-      <ul className="compact-lines" aria-label="Usual items">
-        {USUALS.map((u) => (
-          <li key={u.item} className={askMe.has(u.item) ? 'compact-line ap-off' : 'compact-line'}>
-            <ProductPhoto productId={u.cart?.product.productId} name={u.item} size={48} />
-            <div className="compact-text">
-              <strong>{u.cart?.product.name ?? label(u.item)}</strong>
-              <span className="muted">{u.cart ? `${packs(u.cart.packs, u.cart.product.salesUnit)} · ${eur(u.cart.product.price)}` : `${u.quantity} ${u.unit}`}</span>
-              <span className="ap-when">
-                {label(rhythm(u.every))} · {u.next === THIS_MONDAY ? 'due now' : `next ${day(u.next)}`}
-              </span>
-            </div>
-            {u.cart && <span className="compact-price">{eur(u.gross)}</span>}
-            <label className="ask-me">
-              <input type="checkbox" aria-label={`Ask me before ordering ${u.item}`} checked={askMe.has(u.item)} onChange={() => flip(u.item)} />
-              Ask me
-            </label>
-          </li>
-        ))}
-      </ul>
+      <details className="more ap-fold">
+        <summary>
+          <span className="ap-next">
+            <strong>Next delivery {day(THIS_MONDAY)}</strong>
+            <span className="muted">
+              {due.length} items, <span className="num">{eur(gross)}</span>
+            </span>
+          </span>
+        </summary>
+        <ul className="compact-lines" aria-label="Usual items">
+          {USUALS.map((u) => (
+            <li key={u.item} className={askMe.has(u.item) ? 'compact-line ap-off' : 'compact-line'}>
+              <ProductPhoto productId={u.cart?.product.productId} name={u.item} size={48} />
+              <div className="compact-text">
+                <strong>{u.cart?.product.name ?? label(u.item)}</strong>
+                <span className="muted">{u.cart ? `${packs(u.cart.packs, u.cart.product.salesUnit)} · ${eur(u.cart.product.price)}` : `${u.quantity} ${u.unit}`}</span>
+                <span className="ap-when">
+                  {label(rhythm(u.every))} · {u.next === THIS_MONDAY ? 'due now' : `next ${day(u.next)}`}
+                </span>
+              </div>
+              {u.cart && <span className="compact-price">{eur(u.gross)}</span>}
+              <label className="ask-me">
+                <input type="checkbox" aria-label={`Ask me before ordering ${u.item}`} checked={askMe.has(u.item)} onChange={() => flip(u.item)} />
+                Ask me
+              </label>
+            </li>
+          ))}
+        </ul>
 
-      <details className="more">
-        <summary>How Mikko decides</summary>
+        <p className="ap-rules-title">How Mikko decides</p>
         <ul className="ap-rules">
           <li>Quantity and rhythm come from your last 12 weeks.</li>
           <li>Every price is signed by Valio Aimo before the order goes out.</li>

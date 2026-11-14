@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { MockGatewayApi, type GatewayApi } from '../api';
 import { REASON_CODE_INFO, type Actor, type AuditEvent } from '@junction/shared';
 import type { AuditScope } from '../contract';
 import { verifyChain, type ChainResult } from '../hash';
 import { eur, Icon, shortHash, ToneIcon, useLive } from '../ui';
 
-const TABS: { scope: AuditScope; label: string; intro: string }[] = [
-  { scope: 'buyer', label: 'Buyer view', intro: 'What my agent did and why.' },
-  { scope: 'aimo', label: 'Aimo view', intro: 'Which agents ordered what, under which mandate.' },
+const TABS: { scope: AuditScope; label: string }[] = [
+  { scope: 'buyer', label: 'Buyer' },
+  { scope: 'aimo', label: 'Aimo' },
 ];
 
 const actorLabel = (actor: Actor, scope: AuditScope) =>
@@ -59,40 +59,103 @@ function byDay(events: AuditEvent[]): [string, AuditEvent[]][] {
   return [...groups];
 }
 
+/** Events whose title already names who acted, so the meta line leaves the actor out. */
+const ACTOR_IN_TITLE = new Set<AuditEvent['type']>(['offers_issued', 'order_proposed', 'order_approved', 'order_rejected']);
+
+/** Newest-first events of one day, those of the same order kept together where the order first appears. */
+function byOrder(list: AuditEvent[]): AuditEvent[][] {
+  const orders = new Map<string, AuditEvent[]>();
+  const out: AuditEvent[][] = [];
+  for (const e of list) {
+    const group = e.orderId ? orders.get(e.orderId) : undefined;
+    if (group) group.push(e);
+    else {
+      const fresh = [e];
+      out.push(fresh);
+      if (e.orderId) orders.set(e.orderId, fresh);
+    }
+  }
+  return out;
+}
+
 const TONE_ICON: Record<Tone, 'ok' | 'warn' | 'stop'> = { ok: 'ok', warn: 'warn', stop: 'stop', info: 'ok' };
 
-function EventRow({ event: e, scope }: { event: AuditEvent; scope: AuditScope }) {
+function Dot({ tone }: { tone: Tone }) {
+  return (
+    <span className="ev-dot" aria-hidden="true">
+      {tone === 'info' ? <Icon name="shield" size={16} /> : <ToneIcon tone={TONE_ICON[tone]} />}
+    </span>
+  );
+}
+
+/** `grouped`: the row sits inside its order's fold, so hashes show directly; `lead`: the row whose title is the fold's summary. */
+function EventRow({ event: e, scope, grouped = false, lead = false }: { event: AuditEvent; scope: AuditScope; grouped?: boolean; lead?: boolean }) {
   const { tone, title, detail } = describe(e, scope);
+  const proof = (
+    <>
+      <p className="hashes">
+        <span title={e.hash}>hash {shortHash(e.hash)}</span>
+        <span title={e.prevHash}>
+          follows {e.seq === 0 ? 'genesis' : `#${e.seq - 1}`} {shortHash(e.prevHash)}
+        </span>
+      </p>
+      <p className="ev-raw">{e.summary}</p>
+    </>
+  );
   return (
     <li className={`ev ev-${tone}`}>
-      <span className="ev-dot" aria-hidden="true">
-        {tone === 'info' ? <Icon name="shield" size={16} /> : <ToneIcon tone={TONE_ICON[tone]} />}
-      </span>
+      <Dot tone={tone} />
       <div className="ev-body">
-        <p className="ev-title">{title}</p>
+        {!lead && <p className="ev-title">{title}</p>}
         {detail && <p className="ev-detail">{detail}</p>}
         <p className="ev-meta">
-          <time dateTime={e.at}>{clock(e.at)}</time>
-          <span>{actorLabel(e.actor, scope)}</span>
-          {e.orderId && <a href={`#/orders/${e.orderId}`}>Order {e.orderId}</a>}
+          {!lead && <time dateTime={e.at}>{clock(e.at)}</time>}
+          {!ACTOR_IN_TITLE.has(e.type) && <span>{actorLabel(e.actor, scope)}</span>}
+          {e.orderId && (!grouped || lead) && <a href={`#/orders/${e.orderId}`}>{lead ? 'Open order' : `Order ${e.orderId}`}</a>}
           {scope === 'aimo' && <span>Mandate {String(e.data.mandateId ?? 'none')}</span>}
         </p>
-        <details className="ev-proof">
-          <summary>Proof #{e.seq}</summary>
-          <p className="hashes">
-            <span title={e.hash}>hash {shortHash(e.hash)}</span>
-            <span title={e.prevHash}>
-              follows {e.seq === 0 ? 'genesis' : `#${e.seq - 1}`} {shortHash(e.prevHash)}
-            </span>
-          </p>
-          <p className="ev-raw">{e.summary}</p>
-        </details>
+        {grouped ? (
+          <div className="ev-proof">{proof}</div>
+        ) : (
+          <details className="ev-proof">
+            <summary>Proof #{e.seq}</summary>
+            {proof}
+          </details>
+        )}
       </div>
     </li>
   );
 }
 
-function ChainStatus({ events }: { events: AuditEvent[] }) {
+/** One order's events of the day behind one fold: the newest event's title is the summary. */
+function OrderGroup({ events, scope }: { events: AuditEvent[]; scope: AuditScope }) {
+  const newest = events[0]!;
+  const { tone, title } = describe(newest, scope);
+  return (
+    <li className={`ev ev-${tone}`}>
+      <Dot tone={tone} />
+      <details className="more ev-fold">
+        <summary>
+          <span className="ev-body">
+            <span className="ev-title">{title}</span>
+            <span className="ev-meta">
+              <span>Order {newest.orderId}</span>
+              <time dateTime={newest.at}>{clock(newest.at)}</time>
+            </span>
+          </span>
+        </summary>
+        <ol className="ev-list">
+          {events.map((e, i) => (
+            <EventRow key={e.seq} event={e} scope={scope} grouped lead={i === 0} />
+          ))}
+        </ol>
+      </details>
+    </li>
+  );
+}
+
+/** `children` (the demo tamper button) sits inside the verified fold. */
+function ChainStatus({ events, children }: { events: AuditEvent[]; children?: ReactNode }) {
   const [result, setResult] = useState<ChainResult>();
 
   useEffect(() => {
@@ -104,18 +167,27 @@ function ChainStatus({ events }: { events: AuditEvent[] }) {
   }, [events]);
 
   if (!result) return <p className="chain" role="status">Checking the hash chain...</p>;
+  if (result.ok)
+    return (
+      <div className="chain tone-ok">
+        <details className="more chain-fold">
+          <summary>
+            <strong role="status">Chain verified ✓</strong>
+          </summary>
+          <p>
+            {`Nothing was changed after it was written: ${events.length} events, each SHA-256 hash recomputed in this browser.`}
+            {result.outsideLinks > 0 && ` ${result.outsideLinks} link(s) point to events outside this view and are checked in the Aimo view.`}
+          </p>
+          {children}
+        </details>
+      </div>
+    );
   return (
-    <div className={`chain tone-${result.ok ? 'ok' : 'stop'}`} role="status">
-      <ToneIcon tone={result.ok ? 'ok' : 'stop'} />
+    <div className="chain tone-stop" role="status">
+      <ToneIcon tone="stop" />
       <div>
-        <strong>{result.ok ? 'Chain verified ✓' : 'Chain broken ✗'}</strong>
-        <p>
-          {result.ok
-            ? `Nothing was changed after it was written: ${events.length} events, each SHA-256 hash recomputed in this browser.`
-            : `Event #${result.brokenAt} does not match its hash. It was changed after it was written.`}
-          {result.ok && result.outsideLinks > 0 &&
-            ` ${result.outsideLinks} link(s) point to events outside this view and are checked in the Aimo view.`}
-        </p>
+        <strong>Chain broken ✗</strong>
+        <p>{`Event #${result.brokenAt} does not match its hash. It was changed after it was written.`}</p>
       </div>
     </div>
   );
@@ -161,14 +233,12 @@ function AgentTable({ events }: { events: AuditEvent[] }) {
 export function AuditTrail({ api }: { api: GatewayApi }) {
   const [scope, setScope] = useState<AuditScope>('buyer');
   const { data: events, error } = useLive(api, () => api.listAuditEvents(scope), scope);
-  const tab = TABS.find((t) => t.scope === scope)!;
 
   return (
     <>
       <header className="page-head page-head-row">
         <div>
           <h1>Audit trail</h1>
-          <p className="lead">Every offer, order and decision, chained by SHA-256 hashes.</p>
         </div>
         <div className="tabs" role="tablist" aria-label="Audit views">
         {TABS.map((t) => (
@@ -188,7 +258,6 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
       </header>
 
       <div id="audit-panel" role="tabpanel" aria-labelledby={`tab-${scope}`}>
-        <p className="muted">{tab.intro}</p>
         {error && (
           <p className="error" role="alert">
             Could not load the audit trail. {error}
@@ -196,30 +265,32 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
         )}
         {events && (
           <>
-            <ChainStatus events={events} />
+            <ChainStatus events={events}>
+              {api instanceof MockGatewayApi && events.length > 1 && (
+                <p>
+                  <button type="button" className="btn" onClick={() => void api.tamper(events[1]!.seq)}>
+                    Demo: tamper with event #{events[1]!.seq}
+                  </button>
+                </p>
+              )}
+            </ChainStatus>
             {scope === 'aimo' && <AgentTable events={events} />}
-            <section className="card" aria-labelledby="events-title">
-              <h2 id="events-title" className="card-title">
-                What happened, newest first
-              </h2>
+            <section className="card" aria-label="What happened, newest first">
               {byDay([...events].reverse()).map(([dayLabel, list]) => (
                 <div key={dayLabel} className="ev-day">
-                  <h3 className="ev-day-title">{dayLabel}</h3>
+                  <h2 className="ev-day-title">{dayLabel}</h2>
                   <ol className="ev-list">
-                    {list.map((e) => (
-                      <EventRow key={e.seq} event={e} scope={scope} />
-                    ))}
+                    {byOrder(list).map((group) =>
+                      group[0]!.orderId ? (
+                        <OrderGroup key={group[0]!.seq} events={group} scope={scope} />
+                      ) : (
+                        <EventRow key={group[0]!.seq} event={group[0]!} scope={scope} />
+                      ),
+                    )}
                   </ol>
                 </div>
               ))}
             </section>
-            {api instanceof MockGatewayApi && events.length > 1 && (
-              <p>
-                <button type="button" className="btn" onClick={() => void api.tamper(events[1]!.seq)}>
-                  Demo: tamper with event #{events[1]!.seq}
-                </button>
-              </p>
-            )}
           </>
         )}
       </div>

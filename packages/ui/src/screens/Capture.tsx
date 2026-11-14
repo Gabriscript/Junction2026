@@ -3,9 +3,10 @@
 //  - Upload: photo or PDF → /api/scan; CSV or Excel → read in the browser, one row per line
 //  - Speak: the browser's speech recognition (Safari / Chrome), needs HTTPS or localhost
 // The chef always sees and can edit the text before sending it.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { readSheet } from 'read-excel-file/browser';
 import type { GatewayApi } from '../api';
+import { Icon } from '../ui';
 
 type Recognition = {
   lang: string;
@@ -64,7 +65,7 @@ export async function fileToText(file: File, api: GatewayApi): Promise<string> {
     return rowsToText((await readSheet(file)) as unknown[][]);
   }
   if (name.endsWith('.xls')) throw new Error('Old .xls files are not supported: save it as .xlsx or .csv');
-  if (!api.scan) throw new Error('Reading photos and PDFs needs the assistant server');
+  if (!api.scan) throw new Error('Reading photos and PDFs needs Mikko online');
   if (file.type === 'application/pdf' || name.endsWith('.pdf')) return api.scan(await toBase64(file), 'application/pdf');
   if (file.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp)$/.test(name)) {
     return api.scan(await toBase64(await shrinkImage(file)), 'image/jpeg');
@@ -72,14 +73,77 @@ export async function fileToText(file: File, api: GatewayApi): Promise<string> {
   throw new Error('Use a photo, PDF, CSV or Excel (.xlsx) file');
 }
 
-export function CaptureBar({ api, onText, idPrefix }: { api: GatewayApi; onText: (text: string, mode: 'replace' | 'append') => void; idPrefix: string }) {
+const MIC = 'M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v3.5M9 20.5h6';
+const CAMERA = 'M4 8a1 1 0 0 1 1-1h3l1.5-2h5L16 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM12 9.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z';
+// Same line style as Icon in ui.tsx, for the two glyphs it does not have.
+const Glyph = ({ d }: { d: string }) => (
+  <svg className="icon" viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" focusable="false">
+    <path d={d} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/** Pill composer: + (photo, camera, file) | the text field passed as children | mic, or Send once there is text. */
+export function CaptureBar({
+  api,
+  onText,
+  hasText,
+  working,
+  children,
+}: {
+  api: GatewayApi;
+  onText: (text: string, mode: 'replace' | 'append') => void;
+  hasText: boolean;
+  working?: string;
+  children: ReactNode;
+}) {
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [listening, setListening] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const recognition = useRef<Recognition | null>(null);
+  const attachBox = useRef<HTMLDivElement>(null);
+  const plus = useRef<HTMLButtonElement>(null);
+  const photo = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const doc = useRef<HTMLInputElement>(null);
+  const menuId = useId();
   const Speech = speechCtor();
 
   useEffect(() => () => recognition.current?.stop(), []);
+
+  // Same as the + menu in Chat.tsx: close on a tap outside or on Escape (focus back on +).
+  useEffect(() => {
+    if (!menuOpen) return;
+    attachBox.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const onDown = (e: PointerEvent) => {
+      if (!attachBox.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onEsc = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setMenuOpen(false);
+      plus.current?.focus();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [menuOpen]);
+
+  const onMenuKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+  };
+
+  const pick = (input: HTMLInputElement | null) => {
+    setMenuOpen(false);
+    plus.current?.focus();
+    input?.click();
+  };
 
   const readFile = async (file: File | undefined) => {
     if (!file) return;
@@ -134,27 +198,59 @@ export function CaptureBar({ api, onText, idPrefix }: { api: GatewayApi; onText:
 
   return (
     <div className="capture">
-      <div className="capture-buttons">
-        <label className="btn capture-btn" htmlFor={`${idPrefix}-camera`}>
-          Scan note
-        </label>
-        <input id={`${idPrefix}-camera`} className="sr-file" type="file" accept="image/*" capture="environment" onChange={onPick} />
-        <label className="btn capture-btn" htmlFor={`${idPrefix}-file`}>
-          Upload file
-        </label>
-        <input
-          id={`${idPrefix}-file`}
-          className="sr-file"
-          type="file"
-          accept="image/*,application/pdf,.pdf,.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          onChange={onPick}
-        />
-        <button type="button" className={listening ? 'btn capture-btn listening' : 'btn capture-btn'} aria-pressed={listening} onClick={toggleSpeech}>
-          {listening ? 'Stop' : 'Speak'}
-        </button>
+      <div className="composer">
+        <div className="composer-row">
+          <div className="attach" ref={attachBox}>
+            <button
+              ref={plus}
+              type="button"
+              className="icon-btn"
+              aria-label="Add a photo or file"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <Icon name="plus" />
+            </button>
+            <div id={menuId} className="attach-menu" role="menu" aria-label="Add" hidden={!menuOpen} onKeyDown={onMenuKey}>
+              <button type="button" role="menuitem" onClick={() => pick(photo.current)}>
+                <Icon name="image" />
+                Photo
+              </button>
+              <button type="button" role="menuitem" onClick={() => pick(camera.current)}>
+                <Glyph d={CAMERA} />
+                Camera
+              </button>
+              <button type="button" role="menuitem" onClick={() => pick(doc.current)}>
+                <Icon name="file" />
+                File
+              </button>
+            </div>
+            <input ref={photo} type="file" accept="image/*" hidden onChange={onPick} />
+            <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={onPick} />
+            <input
+              ref={doc}
+              type="file"
+              accept="image/*,application/pdf,.pdf,.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              hidden
+              onChange={onPick}
+            />
+          </div>
+          {children}
+          {hasText && !listening ? (
+            <button type="submit" className="send-btn" aria-label="Send to Mikko" disabled={!!working}>
+              <Icon name="send" />
+            </button>
+          ) : (
+            <button type="button" className={listening ? 'icon-btn listening' : 'icon-btn'} aria-label="Speak" aria-pressed={listening} onClick={toggleSpeech}>
+              <Glyph d={MIC} />
+            </button>
+          )}
+        </div>
       </div>
       <p className="muted capture-status" role="status" aria-live="polite">
-        {busy ?? (listening ? 'Listening… speak your order, then tap Stop.' : 'Photo, PDF, CSV or Excel. You can check the text before sending.')}
+        {busy ?? (listening ? 'Listening… speak your order, then tap the mic again.' : (working ?? ''))}
       </p>
       {error && (
         <p className="error" role="alert">
