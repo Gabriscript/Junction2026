@@ -6,7 +6,7 @@
 import { TOOLS, type ToolInput, type ToolName, type ToolOutput } from '@junction/shared';
 import { validateInput, type GatewayClient } from './gateway-client.js';
 
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal; redirect: 'error' }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 /** A non-2xx answer, e.g. 403 UNKNOWN_AGENT, 422 OFFER_EXPIRED, 429 QUERY_BUDGET_EXCEEDED. */
 export class GatewayHttpError extends Error {
@@ -36,6 +36,8 @@ export class HttpGateway implements GatewayClient {
     const url = path.replace(/\{(\w+)\}/g, (_match, param: string) => {
       const value = String(body[param] ?? '');
       delete body[param];
+      // "." and ".." survive encodeURIComponent and would walk the path to another route
+      if (value === '.' || value === '..') throw new GatewayHttpError(0, 'INVALID_INPUT', `${name}: ${param} cannot be "${value}"`);
       return encodeURIComponent(value);
     });
     const res = await this.fetchImpl(`${this.baseUrl.replace(/\/+$/, '')}${url}`, {
@@ -43,8 +45,11 @@ export class HttpGateway implements GatewayClient {
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(TIMEOUT_MS),
+      redirect: 'error', // never resend a mandate to wherever a redirect points
     });
-    const payload = await res.json().catch(() => undefined);
+    const payload = await res.json().catch(() => {
+      throw new GatewayHttpError(res.status, 'INVALID_JSON', `${name}: HTTP ${res.status} with a body that is not JSON`);
+    });
     if (!res.ok) {
       const error = (payload ?? {}) as { code?: unknown; message?: unknown };
       throw new GatewayHttpError(res.status, String(error.code ?? 'HTTP_ERROR'), `${name}: HTTP ${res.status} ${String(error.code ?? '')} ${String(error.message ?? '')}`.trim());

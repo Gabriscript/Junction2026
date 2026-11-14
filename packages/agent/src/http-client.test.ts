@@ -49,3 +49,16 @@ describe('HttpGateway', () => {
     expect(result).toMatchObject({ ordered: true, status: 'auto_approved' });
   });
 });
+
+describe('HttpGateway hardening', () => {
+  it('refuses dot-segment ids, refuses redirects, and reports a non-JSON body', async () => {
+    const seen: string[] = [];
+    const gateway = new HttpGateway('http://gw.test', async (_url, init) => {
+      seen.push(init.redirect);
+      return { ok: true, status: 200, json: async () => JSON.parse('<html>') };
+    });
+    await expect(gateway.get_order({ orderId: '..' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(gateway.get_order({ orderId: 'ord_1' })).rejects.toMatchObject({ code: 'INVALID_JSON' });
+    expect(seen).toEqual(['error']);
+  });
+});

@@ -11,9 +11,13 @@ const text = process.argv.slice(2).join(' ') || 'I need 1,000 litres of lactose-
 
 try {
   // LLM_PROVIDER defaults to none. GATEWAY_URL=http://localhost:8787 talks to the real gateway, otherwise the in-process mock.
-  // The trust root is configuration (issuer + JWKS URL; TRUST_ISSUER overrides), never what the offers claim.
+  // The trust root is configuration: TRUST_JWKS_URL is both the pinned issuer and where its keys live. It must equal the
+  // gateway's GATEWAY_PUBLIC_URL + /.well-known/jwks.json (localhost vs 127.0.0.1 counts), or every offer is rejected.
+  // shortcut: the default derives it from GATEWAY_URL, so whoever answers there is trusted; fine for the local demo only,
+  // which is why a non-local gateway must be HTTPS and should come with its own TRUST_JWKS_URL.
   const url = process.env.GATEWAY_URL?.replace(/\/+$/, '');
-  const jwksUrl = url && (process.env.TRUST_ISSUER ?? `${url}/.well-known/jwks.json`);
+  if (url && !/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)) throw new Error('GATEWAY_URL must be https:// unless it is localhost');
+  const jwksUrl = url && (process.env.TRUST_JWKS_URL || `${url}/.well-known/jwks.json`);
   const mock = new MockGateway();
   const gateway = url ? new HttpGateway(url) : mock;
   // SUBSTITUTION_POLICY=same_category shows step 8: a short cheap product topped up with a substitute
