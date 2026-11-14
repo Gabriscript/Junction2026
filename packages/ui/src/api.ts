@@ -254,9 +254,18 @@ export class MockGatewayApi implements GatewayApi {
   }
 }
 
-export function createApi(): GatewayApi {
+export async function createApi(): Promise<GatewayApi> {
   const url = import.meta.env.VITE_GATEWAY_URL as string | undefined;
   // ?demo forces the mock (with the guided tour) on a live deploy.
   const demo = new URLSearchParams(window.location.search).has('demo');
-  return url && !demo ? new HttpGatewayApi(url) : new MockGatewayApi();
+  if (!url || demo) return new MockGatewayApi();
+  const live = new HttpGatewayApi(url);
+  // The live backend must answer once at startup, else the app opens on the mock (marked "Demo mode") instead of an error screen.
+  // shortcut: only checked at startup, a backend that dies mid-session still shows its error; upgrade if that matters.
+  try {
+    await Promise.race([live.listOrders(), new Promise((_, reject) => setTimeout(() => reject(new Error('gateway timeout')), 8000))]);
+    return live;
+  } catch {
+    return new MockGatewayApi();
+  }
 }

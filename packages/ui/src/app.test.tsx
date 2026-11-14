@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { expect, test } from 'vitest';
-import { MockGatewayApi, toolPath, type GatewayApi } from './api';
+import { afterEach, expect, test, vi } from 'vitest';
+import { createApi, HttpGatewayApi, MockGatewayApi, toolPath, type GatewayApi } from './api';
 import { App } from './App';
 import { auditChain } from '@junction/shared/fixtures';
 import { verifyChain } from './hash';
@@ -316,4 +316,17 @@ test('the Demo tour button is on the live build too, and ?demo=tour opens the to
   fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
   expect(window.location.search).toBe('?demo'); // a reload stays in the demo but no longer restarts the tour
   window.history.pushState(null, '', '/');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
+test('a live backend that errors at startup opens the mock instead of an error screen', async () => {
+  vi.stubEnv('VITE_GATEWAY_URL', '/');
+  vi.stubGlobal('fetch', async () => new Response('A server error has occurred', { status: 500 }));
+  expect(await createApi()).toBeInstanceOf(MockGatewayApi);
+  vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }));
+  expect(await createApi()).toBeInstanceOf(HttpGatewayApi);
 });
