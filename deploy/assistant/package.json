@@ -1,0 +1,9 @@
+{
+  "name": "junction2026-assistant-vercel",
+  "private": true,
+  "type": "commonjs",
+  "description": "Vercel root of the assistant service: index.cjs + the bundle built from packages/agent.",
+  "scripts": {
+    "vercel-build": "cd ../.. && npm install && npm run build:shared && npm run bundle:vercel -- assistant"
+  }
+}

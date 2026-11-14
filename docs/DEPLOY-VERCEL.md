@@ -5,8 +5,8 @@ One Vercel project, three services, defined in [`vercel.json`](../vercel.json).
 | Service | Root | What it is | Public paths |
 |---|---|---|---|
 | `web` | `packages/ui/` | Vite build: dashboard (`/`) and Aimo webshop (`/shop.html`) | `/` (catch-all, last) |
-| `gateway` | `packages/gateway/` | Fastify: REST, signed offers, policy, audit, MCP | `/v1/*`, `/.well-known/*`, `/docs`, `/mcp` |
-| `assistant` | `packages/agent/` | Mikko: menu → order, scan, SSE relay | `/api/*` |
+| `gateway` | `deploy/gateway/` (code: `packages/gateway`) | Fastify: REST, signed offers, policy, audit, MCP | `/v1/*`, `/.well-known/*`, `/docs`, `/mcp` |
+| `assistant` | `deploy/assistant/` (code: `packages/agent`) | Mikko: menu → order, scan, SSE relay | `/api/*` |
 
 Binding: `assistant` → `gateway` as `GATEWAY_URL` (internal URL, injected at runtime).
 Services see the original path (no prefix stripping), so the code's routes match the public paths.
@@ -22,8 +22,10 @@ Services see the original path (no prefix stripping), so the code's routes match
 
 ## What the build does
 
-- `gateway`: `vercel-build` builds `packages/shared`, then runs `npm run load-catalogue`. That downloads the dataset into `data/raw` and writes `packages/gateway/data/catalogue.sqlite`, one read-only file shipped with the function.
-- `assistant`: builds `packages/shared`.
+The backend services do not deploy the TypeScript packages directly: Vercel guessed the entrypoint by name (`src/index.ts`, the library barrel, wins over `src/server.ts`) and ran the ESM output as CommonJS. Each backend root under `deploy/` holds only `index.cjs` (the one entrypoint candidate) and a `package.json` whose `vercel-build` writes `dist/server.cjs`: one self-contained CommonJS bundle (`npm run bundle:vercel`, esbuild; `@junction/shared` and all npm deps inlined, `node:*` builtins external).
+
+- `gateway`: `vercel-build` runs `npm run load-catalogue` (builds `packages/shared`, downloads the dataset into `data/raw`, writes `packages/gateway/data/catalogue.sqlite`), then bundles. The catalogue and the swagger-ui assets are embedded in the bundle and written to the function's tmp dir at cold start, so nothing depends on Vercel's file tracing.
+- `assistant`: builds `packages/shared`, then bundles.
 - `web`: builds `packages/shared`, then `VITE_GATEWAY_URL=/ vite build` (live mode, same origin).
 
 ## Limits (demo, not production)

@@ -1,0 +1,9 @@
+{
+  "name": "junction2026-gateway-vercel",
+  "private": true,
+  "type": "commonjs",
+  "description": "Vercel root of the gateway service: index.cjs + the bundle built from packages/gateway.",
+  "scripts": {
+    "vercel-build": "cd ../.. && npm install && npm run load-catalogue && npm run bundle:vercel -- gateway"
+  }
+}
