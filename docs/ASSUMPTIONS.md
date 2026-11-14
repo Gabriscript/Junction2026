@@ -39,3 +39,4 @@ Everything the prototype does that the Valio Aimo mock API / dataset does **not*
 - Missing servings → 1 serving; missing date → next available delivery. Both are shown to the chef as assumptions.
 - No pantry/stock awareness and no recipe adaptation to allergens; allergen safety is enforced by the mandate and the gateway policy.
 - Menus: dishes are split on commas, semicolons, colons and new lines; identical ingredients across dishes are merged into one line. Gelato is one ~70 ml scoop per flavour (two scoops if one flavour).
+- Order cut-off: the mock API returns cut-off times already in the past for every date, so `AFTER_CUTOFF` would fire on every line. The demo sets `IGNORE_MOCK_CUTOFF=1`; the rule stays in the policy engine for real data.

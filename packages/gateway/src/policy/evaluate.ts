@@ -160,7 +160,9 @@ export function evaluate(input: PolicyInput): PolicyResult {
         add('DELIVERY_LATER_THAN_NEEDED', `${label}: earliest delivery ${offer.availableDate}, needed by ${proposal.neededBy}.`, lineId);
       }
     }
-    if (offer.cutoffTime && t > new Date(offer.cutoffTime).getTime()) {
+    // The mock API returns cut-off times already in the past for every date (it ignores requestedDate),
+    // so in the demo this rule fires on everything. IGNORE_MOCK_CUTOFF=1 turns it off (see docs/ASSUMPTIONS.md).
+    if (process.env.IGNORE_MOCK_CUTOFF !== '1' && offer.cutoffTime && t > new Date(offer.cutoffTime).getTime()) {
       add('AFTER_CUTOFF', `${label}: order cut-off ${offer.cutoffTime} has passed.`, lineId);
     }
 
