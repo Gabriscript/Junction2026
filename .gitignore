@@ -22,3 +22,6 @@ data/raw/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# all local data (raw portal downloads + SQLite databases)
+data/
