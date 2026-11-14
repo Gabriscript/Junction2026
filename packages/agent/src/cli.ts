@@ -2,11 +2,12 @@ import { SubstitutionPolicySchema } from '@junction/shared';
 import { hotelMandate } from '@junction/shared/fixtures';
 import { clean, runAgent } from './agent.js';
 import { MockGateway, MOCK_ISSUER } from './gateway.js';
+import { syntheticHistory, usualFromHistory } from './history.js';
 import { HttpGateway } from './http-client.js';
 import { createProvider } from './llm.js';
 
-// synthetic usual order sizes: the dataset has no order history
-const DEMO_USUAL = { milk: { quantity: 500, unit: 'L' as const, period: 'week' } };
+// usual order sizes from a synthetic 12-week history: the dataset has no order history
+const DEMO_USUAL = usualFromHistory(syntheticHistory(7, 12, '2026-11-16'));
 const text = process.argv.slice(2).join(' ') || 'I need 1,000 litres of lactose-free milk by Monday';
 
 try {
