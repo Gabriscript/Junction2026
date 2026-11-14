@@ -199,7 +199,9 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
         continue;
       }
       const totalCents = toCents(pack.packs * offer.unitPrice);
-      const grossCents = totalCents + Math.floor((totalCents * offer.vatRate) / 100 + 0.5 + 1e-9); // VAT rounded once, half up
+      // VAT in integers only: percent × 100 (13.5 → 1350), then one half-up rounding of an exact integer fraction
+      const vatBasisPoints = Math.round(offer.vatRate * 100);
+      const grossCents = totalCents + Math.floor((totalCents * vatBasisPoints + 5000) / 10000);
       const { jws } = raw as { jws: string }; // verifyOffer has parsed it
       candidates.push({ offer, jws, product, pack, totalCents, grossCents });
       step('verify_offer', input, `signature valid, ${eur(toCents(offer.unitPrice))} per pack, available ${offer.availableDate}, total ${eur(totalCents)} ex VAT${offer.quantityVerified ? '' : ', stock not verified'}`);

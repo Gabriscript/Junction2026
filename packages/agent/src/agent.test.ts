@@ -27,6 +27,7 @@ describe('runAgent with none + MockGateway', () => {
     // cheapest offer that covers quantity and date is the 12 L case
     expect(result.chosen?.product.id).toBe(P.lfCase12);
     expect(result.chosen?.totalCents).toBe(120960); // 84 x 14.40, not 1209.6000000000001
+    expect(result.chosen?.grossCents).toBe(137290); // + 13.5 % VAT = 16,329.6 cents, rounded once half up
     expect(result.chosen?.pack.note).toContain('84 packs × 12 L = 1,008 L (+8 L)');
     // never proposes the cheaper regular milk: it is not lactose-free
     expect(result.trace.map((s) => s.output).join(' ')).not.toContain(P.milk1l);
