@@ -6,6 +6,7 @@ import { auditChain } from '@junction/shared/fixtures';
 import { verifyChain } from './hash';
 import { eur, vatPercent } from './ui';
 import { auroraOrder } from './mockData';
+import { MOCK_AUTO_LIMIT } from './kitchen';
 import { CompactLines } from './screens/Compact';
 
 async function go(hash: string) {
@@ -329,4 +330,14 @@ test('a live backend that errors at startup opens the mock instead of an error s
   expect(await createApi()).toBeInstanceOf(MockGatewayApi);
   vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }));
   expect(await createApi()).toBeInstanceOf(HttpGatewayApi);
+});
+
+test('demo mode shows its auto-approve limit, and no auto-approved mock order is above it', async () => {
+  const api = new MockGatewayApi();
+  const orders = await api.listOrders();
+  const big = orders.filter((o) => o.status === 'auto_approved').map((o) => o.totals.gross);
+  expect(Math.max(...big)).toBeLessThanOrEqual(MOCK_AUTO_LIMIT);
+  window.location.hash = '#/orders';
+  render(<App api={api} />);
+  expect(await screen.findByText(/in this demo/)).toBeTruthy();
 });
