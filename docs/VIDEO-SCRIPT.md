@@ -102,12 +102,12 @@ Only **real exceptions** (team decision): no simulated stock-outs. Data checked 
 
 | Time | Line |
 |---|---|
-| 0:02 | "Tomorrow: dinner for ten. Three courses." |
-| 0:30 | "The chef doesn't open a webshop. He hands it to his purchasing agent." |
-| 0:55 | "The agent turns the menu into a shopping list, and shows every assumption." |
-| 1:08 | "Inside the kitchen's rules, it orders on its own, at prices Valio Aimo has signed. When something changes, the chef decides." |
-| 1:24 | "One tap. Back to cooking." |
-| 1:30 | "Valio Aimo sees every decision, and why, and stops what doesn't play by the rules." |
+| 0:01 | "Tomorrow: dinner for ten. Three courses." |
+| 0:12 | "The chef doesn't open a webshop. He hands it to his purchasing agent." |
+| 0:36 | "The agent turns the menu into a shopping list, and shows every assumption." |
+| 0:54 | "Inside the kitchen's rules, it orders on its own, at prices Valio Aimo has signed. When something changes, the chef decides." |
+| 1:15 | "One tap. Back to cooking." |
+| 1:22 | "Valio Aimo sees every decision, and why, and stops what doesn't play by the rules." |
 
 Captions in the editor can replace the voice-over if you prefer.
 
