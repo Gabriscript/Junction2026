@@ -14,7 +14,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "mcp": "tsx src/mcp/stdio.ts",
-    "vercel-build": "cd ../.. && npm run build:shared && npm run load-catalogue"
+    "vercel-build": "cd ../.. && npm install && npm run build:shared && npm run load-catalogue"
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",

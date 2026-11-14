@@ -5,7 +5,7 @@
   "description": "Approval app (phone-first): approval queue, buyer and Aimo audit views, request form.",
   "license": "MIT",
   "type": "module",
-"scripts": {
+  "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p . && vite build",
     "vercel-build": "npm install --prefix ../.. && npm run build:shared --prefix ../.. && VITE_GATEWAY_URL=/ npm run build",
@@ -13,8 +13,7 @@
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "dev:live": "VITE_GATEWAY_URL=/ vite --host 0.0.0.0",
-    "dev:https": "HTTPS=1 VITE_GATEWAY_URL=/ vite --host 0.0.0.0",
-    "vercel-build": "npm run build:shared --prefix ../.. && VITE_GATEWAY_URL=/ npm run build"
+    "dev:https": "HTTPS=1 VITE_GATEWAY_URL=/ vite --host 0.0.0.0"
   },
   "dependencies": {
     "@junction/shared": "*",
