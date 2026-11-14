@@ -58,3 +58,5 @@ What this gives the demo with **real data only**:
 - **Scanner**: no code needed — iOS **Live Text / Scan Text** fills any text box from the camera. It needs a **real iPhone camera**: the iOS Simulator has no camera, so film that moment on a real phone (screen recording) and say it is the phone's built-in feature.
 - **2:00 is strict.** Rehearse with a timer.
 - The final video must show the real system (no mocked screens).
+
+Full shot-by-shot script with Gemini prompts: [VIDEO-SCRIPT.md](VIDEO-SCRIPT.md).
