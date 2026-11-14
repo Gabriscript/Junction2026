@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { AIMO_PRODUCTS } from '../aimoProducts';
 import type { GatewayApi } from '../api';
 import { history, isoWeek, KITCHEN, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
@@ -18,9 +18,7 @@ const weeks = history.map((w) => ({
 }));
 const peak = Math.max(...weeks.map((w) => w.net));
 const average = weeks.reduce((s, w) => s + w.net, 0) / weeks.length;
-const due = pars.filter(([, p]) => p.weeksSince >= p.every);
 const WINDOW = 4; // weeks on screen; the arrows page back through the 12 the review uses
-const DUE_SHOWN = 5; // what fits the card beside the chart; the rest open with "View full list"
 
 const day = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -98,15 +96,12 @@ function WeeklySpend() {
 export function Orders({ api }: { api: GatewayApi }) {
   const { data: orders, error } = useLive(api, () => api.listOrders(), 'my-orders');
   const mine = (orders ?? []).filter((o) => o.customerRef === AURORA).reverse();
-  const [allDue, setAllDue] = useState(false);
-  const dueId = useId();
-  const more = due.length > DUE_SHOWN;
 
   return (
     <>
       <header className="page-head">
         <h1>Orders</h1>
-        <p className="lead">What you order and what is due.</p>
+        <p className="lead">What you order.</p>
         <p className="muted">{KITCHEN}. Demo data.</p>
       </header>
       {error && (
@@ -118,46 +113,9 @@ export function Orders({ api }: { api: GatewayApi }) {
       <Autopilot api={api} />
 
       <div className="dash-grid">
-        <section className="stat stat-main" aria-labelledby="due-title">
-          <p className="stat-title">
-            <span className="tile">
-              <Icon name="review" />
-            </span>
-            <span>
-              <strong id="due-title">Due this week</strong>
-              <span>Delivery Mon 16 Nov</span>
-            </span>
-          </p>
-          <p className="stat-value">
-            {more ? (
-              <button type="button" className="stat-link" aria-expanded={allDue} aria-controls={dueId} onClick={() => setAllDue(true)}>
-                {due.length} items
-              </button>
-            ) : (
-              `${due.length} items`
-            )}
-          </p>
-          <ul id={dueId} className="due-list">
-            {(allDue ? due : due.slice(0, DUE_SHOWN)).map(([item]) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          {more && (
-            <button type="button" className="due-more" aria-expanded={allDue} aria-controls={dueId} onClick={() => setAllDue(!allDue)}>
-              {allDue ? 'Show fewer' : `View full list (${due.length})`}
-            </button>
-          )}
-          <p className="stat-foot">
-            <a className="on-accent" href="#/new">
-              Order them in the chat
-            </a>
-          </p>
-        </section>
-
+        <Heatmap />
         <WeeklySpend />
       </div>
-
-      <Heatmap />
 
       <section className="card" aria-labelledby="mine-title">
         <h2 id="mine-title" className="card-title">

@@ -297,10 +297,6 @@ form > label + * { margin-top: 0; }
 /* orders dashboard */
 .dash-grid { display: grid; gap: 16px; }
 .dash-grid > .card { margin-top: 0; }
-.due-list { display: grid; gap: 4px; padding-left: 1.25rem; list-style: disc; color: var(--accent-soft); }
-.stat-link, .due-more { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
-.stat-link:hover, .due-more { text-decoration: underline; text-underline-offset: 3px; }
-.due-more { align-self: flex-start; min-height: 44px; color: var(--surface); font-weight: 600; }
 .on-accent { color: var(--surface); font-weight: 600; }
 .chart-avg { display: grid; text-align: right; }
 .bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; height: 180px; }
@@ -406,7 +402,7 @@ form > label + * { margin-top: 0; }
   .detail-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
   .detail-grid > .card { margin-top: 0; grid-column: 1; }
   .detail-grid > .detail-decision { grid-column: 2; grid-row: 1 / span 3; position: sticky; top: 24px; }
-  .dash-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+  .dash-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   .composer-dock { bottom: 0; }
 }
 

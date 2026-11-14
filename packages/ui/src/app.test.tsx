@@ -219,20 +219,6 @@ test('the sidebar collapses to icons, keeps link names and remembers the choice'
   expect(localStorage.getItem('side-collapsed')).toBe('0');
 });
 
-test('due this week shows a short bullet list; the count and "View full list" open all of it', async () => {
-  window.location.hash = '#/orders';
-  render(<App api={new MockGatewayApi()} />);
-  const card = (await screen.findByText('Due this week')).closest('section')!;
-  const shown = () => within(card).getAllByRole('listitem').length;
-  expect(shown()).toBe(5);
-  fireEvent.click(within(card).getByRole('button', { name: /^\d+ items$/ }));
-  expect(shown()).toBe(8);
-  fireEvent.click(within(card).getByRole('button', { name: 'Show fewer' }));
-  expect(shown()).toBe(5);
-  fireEvent.click(within(card).getByRole('button', { name: 'View full list (8)' }));
-  expect(shown()).toBe(8);
-});
-
 test('weekly spend shows 4 weeks, pages back through 12, and a picked week lists what was ordered', async () => {
   window.location.hash = '#/orders';
   render(<App api={new MockGatewayApi()} />);
