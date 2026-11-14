@@ -99,6 +99,6 @@ test('verifyChain: seed is valid, buyer view tolerates links outside the view, b
   expect(await verifyChain(all)).toEqual({ ok: true, outsideLinks: 0 });
   expect(await verifyChain(await api.listAuditEvents('buyer'))).toEqual({ ok: true, outsideLinks: 1 });
 
-  all[4] = { ...all[4], prevHash: all[0].hash };
+  all[4] = { ...all[4]!, prevHash: all[0]!.hash };
   expect(await verifyChain(all)).toMatchObject({ ok: false, brokenAt: 5 });
 });

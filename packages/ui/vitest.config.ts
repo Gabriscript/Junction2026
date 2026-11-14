@@ -1,5 +1,14 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import viteConfig from './vite.config';
 
-export default defineConfig({
-  test: { name: 'ui', environment: 'node', include: ['src/**/*.test.ts'] },
-});
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      name: 'ui',
+      environment: 'jsdom',
+      setupFiles: './src/test-setup.ts',
+      include: ['src/**/*.test.{ts,tsx}'],
+    },
+  }),
+);

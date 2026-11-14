@@ -36,7 +36,7 @@ export interface ChainResult {
 export async function verifyChain(events: AuditEvent[]): Promise<ChainResult> {
   let outsideLinks = 0;
   for (let i = 0; i < events.length; i++) {
-    const { hash, ...rest } = events[i];
+    const { hash, ...rest } = events[i]!;
     if ((await hashEvent(rest)) !== hash) return { ok: false, brokenAt: rest.seq, outsideLinks };
     const prev = events[i - 1];
     if (rest.seq === 1) {

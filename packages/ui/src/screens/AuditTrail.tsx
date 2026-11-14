@@ -134,8 +134,8 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
             </ol>
             {api instanceof MockGatewayApi && events.length > 1 && (
               <p>
-                <button type="button" className="btn" onClick={() => void api.tamper(events[1].seq)}>
-                  Demo: tamper with event #{events[1].seq}
+                <button type="button" className="btn" onClick={() => void api.tamper(events[1]!.seq)}>
+                  Demo: tamper with event #{events[1]!.seq}
                 </button>
               </p>
             )}
