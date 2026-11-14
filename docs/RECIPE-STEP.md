@@ -30,7 +30,7 @@ Assumptions: "delivery date not given: next available delivery", "ready-made pes
 - **The LLM never computes numbers.** It only suggests ingredients and grams per serving. Servings, dates, totals and unit conversion are code.
 - **Sanity bounds** per ingredient kind (`portions.ts`): e.g. pasta 60–150 g/serving. Out of bounds → clamped, and the correction is added to `assumptions`.
 - **Every assumption is visible.** The UI should show `plan.assumptions` with a one-tap correction before ordering.
-- **Fallback:** `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` → Claude (`claude-haiku-5-5`, structured output validated with Zod) then the fixed table; anything else → table only. If both fail → `RecipeError('UNKNOWN_DISH')` and the UI asks the chef to list ingredients.
+- **Fallback:** `GEMINI_API_KEY` (or `LLM_PROVIDER=gemini`) → the fixed table first (demo dishes, with Aimo category codes), then Gemini (`gemini-flash-lite-latest`, validated with Zod) for any other dish; anything else → table only. If both fail → `RecipeError('UNKNOWN_DISH')` and the UI asks the chef to list ingredients.
 - Demo table (`dish-table.ts`): spaghetti al pesto, oven salmon with potatoes, oat porridge (hospital breakfast).
 
 ## How to use it (Step 7 / Step 9)
@@ -81,7 +81,7 @@ Demo table now has: bruschette, fusilli al pesto, gelato (any of vanilla / choco
 Scene "chef": type *Dinner, spaghetti al pesto per 10 persone* → plan with assumptions → signed offers → auto-approved. Variant for the hospital: *porridge for 30 tomorrow* with a nut-free / lactose-free mandate.
 
 ## Not done / known limits
-- The Claude path was type-checked but **not run against the live API** (no key in the dev `.env` yet). Test with `LLM_PROVIDER=anthropic` once a key is in `.env`.
+- With `GEMINI_API_KEY` in `.env`, the agent uses Gemini for any arbitrary dish suggestions with graceful fallback to the demo table.
 - No menu planning, no pantry/stock awareness, no recipe adaptation to allergens.
 - Portion bounds are rough professional-kitchen values, documented as an assumption.
 
@@ -90,7 +90,7 @@ Scene "chef": type *Dinner, spaghetti al pesto per 10 persone* → plan with ass
 - `parse-request.ts` — servings / meal / date / dish text (en, it, some fi)
 - `portions.ts` — sanity bounds and unit conversion
 - `dish-table.ts` — fallback demo recipes
-- `suggesters.ts` — `tableSuggester`, `anthropicSuggester`, `chainSuggesters`, `defaultSuggester`
+- `suggesters.ts` — `tableSuggester`, `geminiSuggester`, `anthropicSuggester`, `chainSuggesters`, `defaultSuggester`
 - `plan.ts` — `planDish()`
 - `menu.ts` — `planMenu()` for whole menus / reservations
 - `recipe.test.ts`, `menu.test.ts` — 10 tests

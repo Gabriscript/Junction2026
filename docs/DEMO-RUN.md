@@ -16,13 +16,13 @@ Prerequisites: `.env` with `AIMO_API_KEY`, and `npm run load-catalogue` done onc
 
 ## Scan, upload, speak (New request and Correction boxes)
 - **Scan note on iPhone/iPad**: uses Apple's **Live Text** ("Scan Text"), the same on-device Vision OCR as AuditReady: no AI, no key, works offline. The button puts the cursor in the box; the chef taps the Scan Text icon above the keyboard (or taps the box again → Scan Text), points at the note, then Insert. Live Text can't be opened from JavaScript, so this one extra tap is needed.
-- **Scan note on a computer / Android** (and photos or PDFs via Upload): the photo goes to Claude (Haiku, `SCAN_MODEL` to change), which reads the note. Needs `ANTHROPIC_API_KEY` in `.env` (the assistant server loads it; `/api/health` shows `"scan": true`).
+- **Scan note on a computer / Android** (and photos or PDFs via Upload): the photo goes to Google Gemini (Flash, `SCAN_MODEL` to change, or Claude if configured), which reads the note. Needs `GEMINI_API_KEY` in `.env` (the assistant server loads it; `/api/health` shows `"scan": true`).
 - **Upload file**: photo or PDF → same as Scan; **CSV / Excel (.xlsx)** are read in the browser, one row per line (no AI).
 - **Speak**: the browser's speech recognition (Safari/Chrome). Needs a secure page: on a real iPhone start the web app with `npm run dev:https -w packages/ui` and open `https://<Mac IP>:5173/shop.html` (accept the self-signed certificate once). On the Mac and the simulator `http://localhost` is enough. Language follows the phone's language.
 
 ## What happens
 1. The chef's text (typed or scanned) goes to `POST /api/menu`.
-2. `planMenu` turns it into dishes and a merged shopping list (recipe table with Aimo category codes, or Claude if `LLM_PROVIDER=anthropic`).
+2. `planMenu` turns it into dishes and a merged shopping list (recipe table with Aimo category codes, or Gemini if `GEMINI_API_KEY` is set / `LLM_PROVIDER=gemini`).
 3. For each ingredient, Gabri's agent runs against the real gateway: search (narrowed by category) → signed offers → verify → pack math → `propose_order`.
 4. The screen shows the plan, the assumptions, and one decision per ingredient (Ordered / Needs your approval / Blocked / Not ordered) with reason codes. Pending lines appear in **Approvals**; approving goes through the gateway and lands in the hash-chained **Audit trail**.
 

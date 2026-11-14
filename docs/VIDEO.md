@@ -51,7 +51,7 @@ What this gives the demo with **real data only**:
 - **Team decision (2026-11-14): real exceptions only.** Vanilla is available, so there is no "vanilla sold out" scene and no simulated stock-out. The video shows only what the system really returns.
 
 ## Recipes: where they come from
-- Today: an LLM (Claude Haiku) proposes ingredients for **any** dish (`anthropicSuggester`, needs `LLM_PROVIDER=anthropic` + key); the fixed table is the offline fallback.
+- Today: an LLM (Google Gemini Flash / DeepMind challenge track) proposes ingredients for **any** dish (`geminiSuggester`, needs `GEMINI_API_KEY`); the fixed table is the offline fallback.
 - Next step (slide): use Valio Aimo's own professional recipes as a trusted source, so suggestions map straight to Aimo products.
 
 ## Risks before recording

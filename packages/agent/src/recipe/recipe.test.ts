@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseChefRequest } from './parse-request.js';
 import { planDish, RecipeError } from './plan.js';
-import { tableSuggester, type IngredientSuggester } from './suggesters.js';
+import { normaliseSuggestion, tableSuggester, type IngredientSuggester } from './suggesters.js';
+import { SuggestionSchema } from './types.js';
 
 // Friday 2026-11-13
 const TODAY = new Date('2026-11-13T12:00:00Z');
@@ -73,5 +74,23 @@ describe('planDish', () => {
     const plan = await planDish('salmon', { suggester: tableSuggester, today: TODAY });
     expect(plan.servings).toBe(1);
     expect(plan.assumptions.some((a) => a.includes('servings not given'))).toBe(true);
+  });
+});
+
+describe('normaliseSuggestion (LLM answers)', () => {
+  it('maps free-form kinds and clears free-text attributes so the schema accepts it', () => {
+    const raw = {
+      dish: 'Risotto ai funghi porcini',
+      ingredients: [
+        { name: 'Carnaroli rice', searchText: 'carnaroli rice', kind: 'dry', perServing: 80, unit: 'g', attributes: ['high starch'], optional: false },
+        { name: 'Dried porcini', searchText: 'porcini', kind: 'produce', perServing: 25, unit: 'g', attributes: ['dried'] },
+        { name: 'Parmigiano', searchText: 'parmesan', kind: 'dairy', perServing: 15, unit: 'grams', attributes: [] },
+      ],
+      assumptions: ['dried porcini'],
+    };
+    const ok = SuggestionSchema.parse(normaliseSuggestion(raw));
+    expect(ok.ingredients.map((i) => i.kind)).toEqual(['pasta_rice_grain', 'vegetable', 'cheese']);
+    expect(ok.ingredients.every((i) => i.attributes.length === 0)).toBe(true);
+    expect(ok.ingredients[2]!.unit).toBe('g');
   });
 });
