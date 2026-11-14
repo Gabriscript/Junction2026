@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GatewayApi } from '../api';
 import type { UiOrder } from '../contract';
 import { eur, Icon, ReasonChips, StatusBadge, time, useLive } from '../ui';
-import { CompactLines, SignedPriceNote } from './Compact';
+import { CompactLines, ProductPhoto, SignedPriceNote } from './Compact';
 import { ReviewActions } from './OrderParts';
 
 /** Gross EUR, summed in integer cents. */
@@ -73,6 +73,33 @@ export function Queue({ api }: { api: GatewayApi }) {
             <p className="stat-foot">
               {count(all, 'auto_approved')} automatic, {count(all, 'approved')} approved by you
             </p>
+            {placed > 0 && (
+              <details className="ordered-list">
+                <summary>See what was ordered</summary>
+                <ul className="compact-lines">
+                  {all
+                    .filter((o) => o.status === 'auto_approved' || o.status === 'approved')
+                    .flatMap((o) =>
+                      o.lines.map((l) => (
+                        <li key={l.lineId} className="compact-line">
+                          <ProductPhoto productId={l.productId} name={l.productName} size={40} />
+                          <div className="compact-text">
+                            <strong>{l.productName}</strong>
+                            <span className="muted">
+                              {l.quantity} × {eur(l.unitPrice)} · {o.status === 'approved' ? 'approved by you' : 'automatic'}
+                            </span>
+                          </div>
+                          <span className="compact-price">{eur(l.totals.gross)}</span>
+                        </li>
+                      )),
+                    )}
+                </ul>
+                <p className="ordered-total">
+                  <span>Total incl. VAT</span>{' '}
+                  <strong>{eur(all.filter((o) => o.status === 'auto_approved' || o.status === 'approved').reduce((n, o) => n + o.totals.gross, 0))}</strong>
+                </p>
+              </details>
+            )}
           </div>
           <div className="stat">
             <p className="stat-title">
