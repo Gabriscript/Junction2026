@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cheapest, clean, runAgent } from '../src/agent.js';
-import { MockGateway } from '../src/gateway.js';
-import { createProvider } from '../src/llm.js';
+import { cheapest, clean, runAgent } from './agent.js';
+import { MockGateway } from './gateway.js';
+import { createProvider } from './llm.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';

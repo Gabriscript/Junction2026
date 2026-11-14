@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { packMath, packSizeOf } from '../src/packMath.js';
+import { packMath, packSizeOf } from './packMath.js';
 
 describe('packMath', () => {
   it('exact fit shows no overshoot', () => {

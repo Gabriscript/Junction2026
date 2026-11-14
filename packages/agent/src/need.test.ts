@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { StructuredNeed } from '../src/contract.js';
-import { createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from '../src/llm.js';
+import { StructuredNeed } from './contract.js';
+import { createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from './llm.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';

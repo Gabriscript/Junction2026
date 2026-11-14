@@ -1,13 +1,11 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noEmit": true,
-    "skipLibCheck": true,
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
     "types": ["node"]
   },
-  "include": ["src", "test"]
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../shared" }]
 }

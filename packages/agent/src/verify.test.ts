@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MockGateway, type MockGatewayOptions } from '../src/gateway.js';
-import { MAX_OFFER_TTL_MS, verifyOffer } from '../src/verify.js';
+import { MockGateway, type MockGatewayOptions } from './gateway.js';
+import { MAX_OFFER_TTL_MS, verifyOffer } from './verify.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z');
 
