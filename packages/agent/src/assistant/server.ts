@@ -32,11 +32,24 @@ try {
   // no .env: rely on the real environment
 }
 
-const PORT = Number(process.env.ASSISTANT_PORT ?? 8788);
+const ON_VERCEL = process.env.VERCEL === '1';
+// Vercel hands the server its port in PORT; locally the assistant stays on 127.0.0.1:8788
+const PORT = Number(process.env.ASSISTANT_PORT ?? (ON_VERCEL ? process.env.PORT : undefined) ?? 8788);
+// On Vercel GATEWAY_URL is injected by the service binding (internal URL of the `gateway` service)
 const GATEWAY = (process.env.GATEWAY_URL ?? 'http://localhost:8787').replace(/\/+$/, '');
-if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(GATEWAY)) throw new Error('GATEWAY_URL must be https:// unless it is localhost');
-// shortcut (same as the CLI): trust the JWKS of the configured gateway; pin TRUST_JWKS_URL for anything non-local
-const JWKS = process.env.TRUST_JWKS_URL || `${GATEWAY}/.well-known/jwks.json`;
+if (!ON_VERCEL && !/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(GATEWAY)) throw new Error('GATEWAY_URL must be https:// unless it is localhost');
+/**
+ * Pinned issuer of signed offers. Same rule as the gateway's `publicBaseUrl` (packages/gateway/src/config.ts):
+ * TRUST_JWKS_URL, else GATEWAY_PUBLIC_URL, else the Vercel production domain / deployment URL, else the local gateway.
+ * Keys are fetched from the gateway we talk to (the binding URL on Vercel), the issuer string stays the public one.
+ */
+function publicGatewayUrl(): string {
+  if (process.env.GATEWAY_PUBLIC_URL) return process.env.GATEWAY_PUBLIC_URL.replace(/\/+$/, '');
+  const host = ON_VERCEL ? process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL : undefined;
+  return host ? `https://${host}` : GATEWAY;
+}
+const JWKS = process.env.TRUST_JWKS_URL || `${publicGatewayUrl()}/.well-known/jwks.json`;
+const JWKS_FETCH = process.env.TRUST_JWKS_URL || `${GATEWAY}/.well-known/jwks.json`;
 
 /** Demo restaurant for the video: the gateway's static demo agent and customer 789. */
 export const bistroMandate: Mandate = {
@@ -53,7 +66,7 @@ export const bistroMandate: Mandate = {
 };
 
 const gateway = new HttpGateway(GATEWAY);
-const trust = { issuer: JWKS, jwks: new URL(JWKS) };
+const trust = { issuer: JWKS, jwks: new URL(JWKS_FETCH) };
 const llm = createProvider();
 
 export interface MenuLineResult {
@@ -407,6 +420,6 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`assistant server on http://127.0.0.1:${PORT} → gateway ${GATEWAY} (mandate ${bistroMandate.mandateId}, customer ${bistroMandate.customerRef})`);
+server.listen(PORT, ON_VERCEL ? '0.0.0.0' : '127.0.0.1', () => {
+  console.log(`assistant server on port ${PORT} → gateway ${GATEWAY} (mandate ${bistroMandate.mandateId}, customer ${bistroMandate.customerRef})`);
 });

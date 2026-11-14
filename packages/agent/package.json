@@ -12,7 +12,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "demo": "tsc -b ../shared && tsx src/cli.ts",
-    "assistant": "tsx watch src/assistant/server.ts"
+    "assistant": "tsx watch src/assistant/server.ts",
+    "vercel-build": "cd ../.. && npm install && npm run build:shared"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
