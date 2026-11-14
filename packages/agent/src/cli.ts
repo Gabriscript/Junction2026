@@ -1,3 +1,4 @@
+import { hotelMandate } from '@junction/shared/fixtures';
 import { clean, runAgent } from './agent.js';
 import { MockGateway, MOCK_ISSUER } from './gateway.js';
 import { createProvider } from './llm.js';
@@ -9,7 +10,7 @@ try {
   const gateway = new MockGateway();
   // demo setup: the trust root is read once from the mock's published keys; a real deployment pins issuer and JWKS URL in config
   const trust = { issuer: MOCK_ISSUER, jwks: await gateway.getJwks() };
-  const result = await runAgent(text, { llm: createProvider(), gateway, now: () => new Date(), trust, mandate: { maxOrderTotalEur: 5000 } }); // demo mandate
+  const result = await runAgent(text, { llm: createProvider(), gateway, now: () => new Date(), trust, mandate: hotelMandate }); // demo mandate from the shared fixtures
   console.log(`Request: ${text}\n`);
   result.trace.forEach((step, index) => {
     console.log(`${index + 1}. ${step.action}\n   in:  ${step.input}\n   out: ${step.output}`);

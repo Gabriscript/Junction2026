@@ -1,6 +1,5 @@
-import { isDeepStrictEqual } from 'node:util';
+import { canonicalJson, OfferSchema, SignedOfferSchema, type Offer, type ReasonCode } from '@junction/shared';
 import { compactVerify, createLocalJWKSet, createRemoteJWKSet, type JSONWebKeySet } from 'jose';
-import { Offer, SignedOffer, type ReasonCode } from './contract.js';
 
 export type OfferVerification = { ok: true; offer: Offer } | { ok: false; reasonCode: ReasonCode };
 
@@ -41,7 +40,7 @@ export function offerIsCurrent(offer: Offer, now: Date): boolean {
   const until = Date.parse(offer.validUntil);
   if (until <= at - CLOCK_SKEW_MS) return false;
   if (until - at > MAX_OFFER_TTL_MS) return false;
-  if (offer.validFrom && Date.parse(offer.validFrom) > at + CLOCK_SKEW_MS) return false;
+  if (Date.parse(offer.validFrom) > at + CLOCK_SKEW_MS) return false;
   return true;
 }
 
@@ -50,20 +49,21 @@ export function offerIsCurrent(offer: Offer, now: Date): boolean {
  * returned offer, never the plain copy they were handed: only the JWS payload is signed.
  */
 export async function verifyOffer(offer: unknown, trust: Trust, now: Date): Promise<OfferVerification> {
-  const parsed = SignedOffer.safeParse(offer);
+  const parsed = SignedOfferSchema.safeParse(offer);
   if (!parsed.success) return INVALID;
 
   let signed: Offer;
   try {
     // pinning ES256 also rejects "alg: none" and algorithm swaps
     const verified = await compactVerify(parsed.data.jws, keysOf(trust.jwks), { algorithms: ['ES256'] });
-    signed = Offer.parse(JSON.parse(new TextDecoder().decode(verified.payload)));
+    const payload = new TextDecoder().decode(verified.payload);
+    // the plain offer is a readable copy: shared signs canonicalJson(offer), so any edit changes these bytes
+    if (payload !== canonicalJson(parsed.data.offer)) return INVALID;
+    signed = OfferSchema.parse(JSON.parse(payload));
   } catch {
     return INVALID;
   }
 
-  // the plain offer is a readable copy: if it differs from what was signed, someone edited it
-  if (!isDeepStrictEqual(parsed.data.offer, signed)) return INVALID;
   // a valid signature from the right key on an offer that names another issuer is still not ours
   if (signed.issuer !== trust.issuer) return INVALID;
 

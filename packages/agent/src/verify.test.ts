@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { MockGateway, type MockGatewayOptions } from './gateway.js';
+import { hotelMandate } from '@junction/shared/fixtures';
+import { MockGateway, MOCK_PRODUCTS as P, type MockGatewayOptions } from './gateway.js';
 import { MAX_OFFER_TTL_MS, verifyOffer } from './verify.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z');
 
 async function setup(options: MockGatewayOptions = {}) {
   const gateway = new MockGateway({ now: () => NOW, ...options });
-  const [offer] = await gateway.getOffers({ product_ids: ['LF-CASE12'], quantity: 1000, unit: 'L' });
+  const { agentId, customerRef } = hotelMandate;
+  const [offer] = (await gateway.get_offers({ agentId, customerRef, items: [{ productId: P.lfCase12, quantity: 84 }], requestedDate: '2026-11-16' })).offers;
   if (!offer) throw new Error('the mock returned no offer');
   // the trust root is built once from the published keys, out of band
   return { gateway, offer, trust: { issuer: 'mock-gateway', jwks: await gateway.getJwks() } };
@@ -19,7 +21,7 @@ describe('verifyOffer', () => {
     const { offer, trust } = await setup();
     const result = await verifyOffer(offer, trust, NOW);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.offer).toMatchObject({ productId: 'LF-CASE12', unitPrice: 14.4 });
+    if (result.ok) expect(result.offer).toMatchObject({ productId: P.lfCase12, unitPrice: 14.4 });
   });
 
   it('rejects a tampered plain price', async () => {

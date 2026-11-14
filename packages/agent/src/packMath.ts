@@ -1,4 +1,5 @@
-import type { Product, Unit } from './contract.js';
+import type { Product } from '@junction/shared';
+import type { Unit } from './contract.js';
 
 export interface PackPlan {
   packs: number; // sales units to order
@@ -33,8 +34,10 @@ export function packMath(
   return { packs, packSize, delivered, overshoot, note };
 }
 
-/** Base units in one sales unit, or undefined when the product data does not say. */
-export function packSizeOf(product: Product): number | undefined {
-  const size = product.units.find((unit) => unit.unitId === product.salesUnit)?.sizeInBaseUnits;
-  return size ?? (product.salesUnit === product.baseUnit ? 1 : undefined);
+/** Net content of one sales unit in `unit` (ML and G scaled to L and KG), or undefined when the product is not measured in it. */
+export function packSizeOf(product: Product, unit: Unit): number | undefined {
+  const content = product.pack.netContent;
+  if (!content) return undefined; // the catalogue has no conversion data
+  const [inUnit, scale] = content.unit === 'ML' ? ['L', 1000] : content.unit === 'G' ? ['KG', 1000] : [content.unit, 1];
+  return inUnit === unit ? content.amount / scale : undefined;
 }

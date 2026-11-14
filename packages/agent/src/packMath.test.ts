@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { Product } from '@junction/shared';
+import { milkLactoseFree } from '@junction/shared/fixtures';
 import { packMath, packSizeOf } from './packMath.js';
 
 describe('packMath', () => {
@@ -29,7 +31,7 @@ describe('packMath', () => {
   });
 
   it('handles large quantities', () => {
-    expect(packMath({ quantity: 1_000_000, unit: 'PCS' }, 48).packs).toBe(20834);
+    expect(packMath({ quantity: 1_000_000, unit: 'ST' }, 48).packs).toBe(20834);
   });
 
   it.each([
@@ -44,15 +46,16 @@ describe('packMath', () => {
 });
 
 describe('packSizeOf', () => {
-  const base = { id: 'p', name: 'p', baseUnit: 'L', attributes: [], allergens: [] };
-  it('reads the size of the sales unit', () => {
-    const units = [{ unitId: 'ST', sizeInBaseUnits: 1 }, { unitId: 'KI', sizeInBaseUnits: 12 }];
-    expect(packSizeOf({ ...base, salesUnit: 'KI', units })).toBe(12);
+  const withContent = (netContent: Product['pack']['netContent']) => ({ ...milkLactoseFree, pack: { ...milkLactoseFree.pack, netContent } });
+  it('reads the net content of one sales unit', () => {
+    expect(packSizeOf(milkLactoseFree, 'L')).toBe(12);
   });
-  it('is 1 when the sales unit is the base unit and not listed', () => {
-    expect(packSizeOf({ ...base, salesUnit: 'L', units: [] })).toBe(1);
+  it('scales ML and G to L and KG', () => {
+    expect(packSizeOf(withContent({ amount: 500, unit: 'ML' }), 'L')).toBe(0.5);
+    expect(packSizeOf(withContent({ amount: 250, unit: 'G' }), 'KG')).toBe(0.25);
   });
-  it('is undefined when the pack size is unknown', () => {
-    expect(packSizeOf({ ...base, salesUnit: 'KI', units: [] })).toBeUndefined();
+  it('is undefined in another unit or when the net content is unknown', () => {
+    expect(packSizeOf(milkLactoseFree, 'KG')).toBeUndefined();
+    expect(packSizeOf(withContent(null), 'L')).toBeUndefined();
   });
 });

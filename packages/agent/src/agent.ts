@@ -1,9 +1,10 @@
-import { Order, Product, type Decision, type Offer, type ReasonCode, type StructuredNeed, type Unit } from './contract.js';
-import type { GatewayClient } from './gateway.js';
-import { extractNeed, type LLMProvider } from './llm.js';
-import { packMath, packSizeOf, type PackPlan } from './packMath.js';
+import type { Decision, Mandate, Offer, Order, Product, ReasonCode } from '@junction/shared';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
+import type { StructuredNeed } from './contract.js';
+import { parseOutput, type GatewayClient } from './gateway-client.js';
+import { addDays, extractNeed, todayIso, type LLMProvider } from './llm.js';
+import { packMath, packSizeOf, type PackPlan } from './packMath.js';
 import { offerIsCurrent, verifyOffer, type Trust } from './verify.js';
 
 export interface TraceStep {
@@ -15,9 +16,11 @@ export interface TraceStep {
 /** A verified offer that covers the needed quantity and date. */
 export interface Candidate {
   offer: Offer; // the signed payload, not the plain copy
+  jws: string; // sent back unchanged in the order line
   product: Product;
   pack: PackPlan;
   totalCents: number; // integer euro cents ex VAT for pack.packs
+  grossCents: number; // the same incl. VAT, what the mandate limits count
 }
 
 export interface RejectedOffer {
@@ -35,8 +38,8 @@ export interface AgentDeps {
   now: () => Date;
   /** Trusted offer issuer and its keys. From configuration, never from `gateway`. */
   trust: Trust;
-  /** Buyer mandate. The spend cap (EUR ex VAT per order) is enforced locally; the whole object is passed on to the gateway. */
-  mandate: { maxOrderTotalEur: number; [key: string]: unknown };
+  /** Buyer mandate, sent with the order. Its budget (EUR incl. VAT) is also enforced locally. */
+  mandate: Mandate;
   /** Extension point for step 8 (ranking, substitution, partial fill). Default: cheapest total. */
   select?: SelectOffer;
 }
@@ -46,7 +49,8 @@ export interface AgentResult {
   /** True when an order was submitted: auto-approved or waiting for approval. Never true for a blocked order. */
   ordered: boolean;
   status: Decision['status'];
-  decision: Decision;
+  /** The gateway's full decision is in order.decision. */
+  decision: Pick<Decision, 'status' | 'reasonCodes'>;
   order?: Order;
   chosen?: Candidate;
   rejected: RejectedOffer[];
@@ -57,7 +61,6 @@ const SHORTLIST_SIZE = 5;
 // money is integer euro cents: rounded once (half up) from the decimal EUR the contract gives, formatted only at the edge
 const toCents = (euros: number) => Math.floor(euros * 100 + 0.5 + 1e-9);
 const eur = (cents: number) => `€${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const toUnit = (baseUnit: string): Unit => (baseUnit === 'L' || baseUnit === 'KG' ? baseUnit : 'PCS');
 
 /**
  * Makes a gateway-supplied string safe to show: no control or invisible formatting characters
@@ -67,16 +70,17 @@ const toUnit = (baseUnit: string): Unit => (baseUnit === 'L' || baseUnit === 'KG
  */
 export const clean = (value: string, max = 120) => value.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '').slice(0, max);
 
-const lower = (values: string[]) => values.map((value) => value.toLowerCase());
-
-/** Product data is unsigned: never rely on the gateway having applied the need's filters. */
+/**
+ * Product data is unsigned: never rely on the gateway having applied the need's filters.
+ * Free from a code = an explicit FREE_FROM, or allergen data present without CONTAINS/MAY_CONTAIN
+ * for it (the mandate rule in shared): no allergen data at all cannot prove "free from".
+ */
 function matchesNeed(product: Product, need: StructuredNeed): boolean {
-  const attributes = lower(product.attributes);
-  if (!lower(need.attributes).every((attribute) => attributes.includes(attribute))) return false;
-  if (!need.freeFromAllergens.length) return true;
-  if (!product.allergens) return false; // unknown allergen data cannot prove "free from"
-  const allergens = lower(product.allergens);
-  return !lower(need.freeFromAllergens).some((allergen) => allergens.includes(allergen));
+  if (!need.attributes.every((attribute) => product.attributes.includes(attribute))) return false;
+  return need.freeFromAllergens.every((code) => {
+    const levels = product.allergens.filter((allergen) => allergen.code === code).map((allergen) => allergen.level);
+    return levels.includes('FREE_FROM') || (product.allergens.length > 0 && !levels.length);
+  });
 }
 
 export const cheapest: SelectOffer = (candidates) => [...candidates].sort((a, b) => a.totalCents - b.totalCents)[0];
@@ -99,19 +103,19 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
 
   // the agent places no order: every reason found so far explains why
   const stop = (why: string): AgentResult => {
-    const decision: Decision = { status: 'blocked', reasonCodes: [...new Set(rejected.map((r) => r.reasonCode))] };
+    const decision: AgentResult['decision'] = { status: 'blocked', reasonCodes: [...new Set(rejected.map((r) => r.reasonCode))] };
     step('stop', why, `not ordered: ${decision.reasonCodes.join(', ') || 'no reason code applies'}`);
     return { need, ordered: false, status: 'blocked', decision, rejected, trace };
   };
 
   // nothing the gateway sends or fails to send may crash the run: stop, blocked, and keep the trace
   try {
-    const search = { text: need.productQuery, attributes: need.attributes, free_from_allergens: need.freeFromAllergens, unit: need.unit };
-    const products = Product.array().parse(await gateway.searchProducts(search));
-    // shortcut: only products sold in the need's unit and with a known pack size, convert L↔KG↔PCS via unitConversions in step 8
+    const search = { text: need.productQuery, attributes: need.attributes, freeFromAllergens: need.freeFromAllergens, unit: need.unit };
+    const { products } = parseOutput('search_products', await gateway.search_products(search));
+    // shortcut: only products whose net content is in the need's unit, convert L↔KG↔ST in step 8
     const matching = products.filter((product) => matchesNeed(product, need));
     const excluded = products.length - matching.length;
-    const shortlist = matching.filter((product) => toUnit(product.baseUnit) === need.unit && packSizeOf(product)).slice(0, SHORTLIST_SIZE);
+    const shortlist = matching.filter((product) => packSizeOf(product, need.unit)).slice(0, SHORTLIST_SIZE);
     step(
       'search_products',
       JSON.stringify(search),
@@ -119,13 +123,15 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     );
     if (!shortlist.length) return stop('no matching product');
 
-    const offersInput = {
-      product_ids: shortlist.map((product) => product.id),
-      quantity: need.quantity,
-      unit: need.unit,
-      ...(need.deliveryBy ? { delivery_date: need.deliveryBy } : {}),
-    };
-    const offers = z.array(z.unknown()).parse(await gateway.getOffers(offersInput));
+    // get_offers quotes sales units, so the pack math runs per product before asking
+    const packs = new Map(shortlist.map((product) => [product.id, packMath(need, packSizeOf(product, need.unit)!, product.pack.allowedLotSize)]));
+    // shortcut: a request without a date asks for tomorrow, the earliest a kitchen order is normally delivered
+    const requestedDate = need.deliveryBy ?? addDays(todayIso(now()), 1);
+    const { agentId, customerRef } = deps.mandate;
+    const items = shortlist.map((product) => ({ productId: product.id, quantity: packs.get(product.id)!.packs }));
+    const offersInput = { agentId, customerRef, items, requestedDate };
+    // offers are checked one by one below: one malformed offer must not discard the others
+    const offers = z.object({ offers: z.array(z.unknown()) }).parse(await gateway.get_offers(offersInput)).offers;
     step('get_offers', JSON.stringify(offersInput), `${offers.length} signed offers`);
 
     const candidates: Candidate[] = [];
@@ -149,18 +155,18 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
         step('verify_offer', input, 'ignored: offer is for a product that was not requested');
         continue;
       }
-      const pack = packMath(need, packSizeOf(product)!, product.allowedLotSize);
+      const pack = packs.get(product.id)!;
       // a genuine signature only proves Aimo made this offer, not that it answers this request
       const mismatch = seenOfferIds.has(offer.offerId)
         ? 'duplicate offer id'
-        : offer.unit !== product.salesUnit
-          ? `unit ${clean(offer.unit ?? 'missing')} is not the sales unit ${clean(product.salesUnit)}`
-          : offer.currency !== 'EUR'
-            ? `currency ${clean(offer.currency ?? 'missing')} is not EUR`
-            : offer.quantity !== pack.packs
-              ? `quoted for ${offer.quantity ?? 'no'} packs, ${pack.packs} requested`
-              : need.deliveryBy && offer.requestedDate !== need.deliveryBy
-                ? `quoted for ${offer.requestedDate ?? 'no date'}, ${need.deliveryBy} requested`
+        : offer.unit !== product.pack.salesUnit
+          ? `unit ${clean(offer.unit)} is not the sales unit ${clean(product.pack.salesUnit)}`
+          : offer.quantity !== pack.packs
+            ? `quoted for ${offer.quantity} packs, ${pack.packs} requested`
+            : offer.requestedDate !== requestedDate
+              ? `quoted for ${clean(offer.requestedDate)}, ${requestedDate} requested`
+              : offer.customerRef !== customerRef
+                ? 'quoted for another customer'
                 : undefined;
       seenOfferIds.add(offer.offerId);
       if (mismatch) {
@@ -180,8 +186,10 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
         continue;
       }
       const totalCents = toCents(pack.packs * offer.unitPrice);
-      candidates.push({ offer, product, pack, totalCents });
-      step('verify_offer', input, `signature valid, ${eur(toCents(offer.unitPrice))} per pack, available ${offer.availableDate}, total ${eur(totalCents)} ex VAT${offer.quantityVerified === false ? ', stock not verified' : ''}`);
+      const grossCents = totalCents + Math.floor((totalCents * offer.vatRate) / 100 + 0.5 + 1e-9); // VAT rounded once, half up
+      const { jws } = raw as { jws: string }; // verifyOffer has parsed it
+      candidates.push({ offer, jws, product, pack, totalCents, grossCents });
+      step('verify_offer', input, `signature valid, ${eur(toCents(offer.unitPrice))} per pack, available ${offer.availableDate}, total ${eur(totalCents)} ex VAT${offer.quantityVerified ? '' : ', stock not verified'}`);
     }
 
     const chosen = (deps.select ?? cheapest)(candidates, need);
@@ -196,20 +204,27 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
       return stop(`${chosenLabel.offerId} is no longer valid`);
     }
 
-    // local spend cap, checked before the gateway sees anything. Written as !(a <= b) so a NaN cap blocks instead of allowing.
-    const capCents = toCents(deps.mandate.maxOrderTotalEur);
-    if (!(chosen.totalCents <= capCents)) {
+    // local budget check, before the gateway sees anything. Written as !(a <= b) so a NaN budget blocks instead of allowing.
+    const capCents = toCents(deps.mandate.budgetLimit);
+    if (!(chosen.grossCents <= capCents)) {
       rejected.push({ ...chosenLabel, reasonCode: 'OVER_BUDGET' });
-      return stop(`${eur(chosen.totalCents)} is above the mandate limit of ${eur(capCents)} per order`);
+      return stop(`${eur(chosen.grossCents)} incl. VAT is above the mandate budget of ${eur(capCents)}`);
     }
 
-    const proposal = { offer_ids: [chosen.offer.offerId], quantities: [chosen.pack.packs], mandate: deps.mandate };
-    const response = Order.safeParse(await gateway.proposeOrder(proposal));
+    const lines = [{ offerId: chosen.offer.offerId, offerJws: chosen.jws, quantity: chosen.pack.packs, substituteFor: null }];
+    const proposal = { agentId, mandate: deps.mandate, lines, neededBy: requestedDate, requestText: text, rationale: `Cheapest verified offer: ${chosen.pack.note}` };
+    const response = await gateway.propose_order(proposal);
+    let order: Order;
+    try {
+      order = parseOutput('propose_order', response).order;
+    } catch {
+      return stop('the order response is not a valid order: order state unknown, check the gateway');
+    }
     // the response is as untrusted as any other gateway output: it must be an order for exactly what was proposed
-    if (!response.success || !isDeepStrictEqual(response.data.offerIds, proposal.offer_ids) || !isDeepStrictEqual(response.data.quantities, proposal.quantities)) {
+    const orderedLines = order.lines.map((line) => [line.offerId, line.quantity]);
+    if (!isDeepStrictEqual(orderedLines, lines.map((line) => [line.offerId, line.quantity]))) {
       return stop('the order response does not match the proposal: order state unknown, check the gateway');
     }
-    const order = response.data;
     step(
       'propose_order',
       `${chosen.pack.packs} × ${chosenLabel.offerId}`,
@@ -217,8 +232,8 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     );
 
     // Terminal stock is a placeholder number, not a verified quantity: say so, whatever the gateway decided
-    const reasonCodes = chosen.offer.quantityVerified === false ? [...new Set<ReasonCode>([...order.decision.reasonCodes, 'UNVERIFIED_STOCK'])] : order.decision.reasonCodes;
-    const decision: Decision = { ...order.decision, reasonCodes };
+    const reasonCodes = chosen.offer.quantityVerified ? order.decision.reasonCodes : [...new Set<ReasonCode>([...order.decision.reasonCodes, 'UNVERIFIED_STOCK'])];
+    const decision = { status: order.decision.status, reasonCodes };
     return { need, ordered: decision.status !== 'blocked', status: decision.status, decision, order, chosen, rejected, trace };
   } catch (error) {
     step('error', 'gateway call or response', clean(error instanceof Error ? error.message : String(error), 300) || 'unknown error');
