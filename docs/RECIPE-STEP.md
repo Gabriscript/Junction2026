@@ -69,7 +69,6 @@ const menu = await planMenu(
 | tomato (pomodorini) | 0.6 KG | bruschette |
 | mozzarella | 0.4 KG | bruschette |
 | oregano | 0.005 KG | bruschette |
-| olive oil | 0.05 L | bruschette |
 | fusilli | 1 KG | fusilli al pesto |
 | pesto | 0.5 KG | fusilli al pesto |
 | parmesan | 0.15 KG | fusilli al pesto |

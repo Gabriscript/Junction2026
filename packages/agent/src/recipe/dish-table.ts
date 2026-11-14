@@ -46,7 +46,6 @@ export const DISH_TABLE: Entry[] = [
         { name: 'pomodorini (small tomatoes)', searchText: 'tomato', kind: 'vegetable', perServing: 60, unit: 'g', attributes: [], optional: false },
         { name: 'mozzarella', searchText: 'mozzarella', kind: 'cheese', perServing: 40, unit: 'g', attributes: [], optional: false },
         { name: 'oregano', searchText: 'oregano', kind: 'herb_spice', perServing: 0.5, unit: 'g', attributes: [], optional: false },
-        { name: 'extra virgin olive oil', searchText: 'olive oil', kind: 'fat_oil', perServing: 5, unit: 'ml', attributes: [], optional: false },
       ],
       assumptions: ['2 bruschette per person as appetizer'],
     },

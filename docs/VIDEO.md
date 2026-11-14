@@ -18,7 +18,7 @@ Status: **proposal**, 2026-11-14. Based on Claudio's idea (reservation → chef 
 All menu products exist in the catalogue:
 - bread: ciabatta / baguette (frozen, part-baked) ✅
 - tomatoes: fresh "FAVORINO TOMATO FIN", "PEARL TOMATO" (category 17401); "cherry tomato" only matches semi-dried ones → search "tomato" ✅
-- mozzarella 125 g balls (several, incl. lactose-free) ✅ · oregano ✅ · olive oil ✅
+- mozzarella 125 g balls (several, incl. lactose-free) ✅ · oregano ✅
 - fusilli: Barilla 5 kg, De Cecco 500 g, gluten-free 500 g → **real cheaper-brand choice** ✅
 - pesto: Saclà 950 g Genovese, Knorr paste 340 g ✅ · parmesan ✅
 - ice cream 5 L tubs: vanilla (16), chocolate (18), strawberry (11) ✅
@@ -37,7 +37,7 @@ Recommendation: use the real exceptions (tomato not deliverable, unverified stoc
 | pomodorini | only plain "TOMATO NL/BE/ES" (unverified qty) | **Pearl tomato, San Marzano, Favorino** → *pomodorini not available → regular tomatoes* |
 | mozzarella | 125 g balls: lactose-free (11 603), Pasta Filata (3 710), bufala (646) | — |
 | oregano / basil | Santa Maria oregano (48), basil bunch (565) | — |
-| olive oil | (none of the 2 checked) | **MONUM 500 ml and 1 L** → needs another oil or drop it |
+| olive oil | — | MONUM 500 ml and 1 L not deliverable → **removed from the bruschetta recipe** (team decision) |
 | fusilli | Barilla 5 kg, €18.14 = €3.63/kg (57) | **De Cecco 500 g** (€5.36/kg) |
 | pesto | Knorr paste 340 g €12.42 (37); Saclà 950 g €59.66 (unverified qty) | — |
 | parmesan | grated 1 kg (406) | — |
