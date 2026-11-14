@@ -420,6 +420,13 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, ON_VERCEL ? '0.0.0.0' : '127.0.0.1', () => {
-  console.log(`assistant server on port ${PORT} → gateway ${GATEWAY} (mandate ${bistroMandate.mandateId}, customer ${bistroMandate.customerRef})`);
-});
+// Vercel owns the port and calls the default export per request (a plain server with no export is refused: "The default export must be a function or server").
+export default function handler(req: IncomingMessage, res: ServerResponse): void {
+  server.emit('request', req, res);
+}
+
+if (!ON_VERCEL) {
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`assistant server on port ${PORT} → gateway ${GATEWAY} (mandate ${bistroMandate.mandateId}, customer ${bistroMandate.customerRef})`);
+  });
+}
