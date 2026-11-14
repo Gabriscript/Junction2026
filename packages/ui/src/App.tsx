@@ -42,7 +42,7 @@ export function App({ api }: { api: GatewayApi }) {
       </a>
       <header className="top">
         <div className="wrap">
-          <p className="brand">Trusted Trade Agents</p>
+          <a className="brand" href="/shop.html"><img src="/aimo-logo.svg" alt="Valio Aimo" width="96" height="33" />AI Assistant</a>
           <nav aria-label="Main">
             {NAV.map((item) => (
               <a key={item.href} href={item.href} aria-current={item.href === `#/${section}` ? 'page' : undefined}>

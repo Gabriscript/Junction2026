@@ -1,20 +1,26 @@
+/* Valio Aimo palette (from the public delivery-wholesale webshop). Same token names as before,
+   so every screen picks up the new look. Licensed Aimo fonts are replaced by free look-alikes. */
 :root {
-  --bg: oklch(97% 0.006 220);
-  --surface: oklch(99.2% 0.003 220);
-  --ink: oklch(22% 0.02 230);
-  --ink-soft: oklch(40% 0.02 230);
-  --line: oklch(84% 0.012 220);
-  --accent: oklch(38% 0.09 240);
-  --accent-ink: oklch(98% 0.005 220);
-  --ok: oklch(36% 0.09 155);
-  --ok-bg: oklch(95% 0.04 155);
-  --warn: oklch(38% 0.08 70);
-  --warn-bg: oklch(95% 0.055 85);
-  --stop: oklch(40% 0.14 25);
-  --stop-bg: oklch(95% 0.03 25);
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --bg: #f2f6f8;
+  --surface: #ffffff;
+  --ink: #0b1f26;
+  --ink-soft: #4f5d61;
+  --line: #dee4e6;
+  --accent: #005670;
+  --accent-ink: #ffffff;
+  --aimo-lavender: #eee8f5;
+  --aimo-lime: #c0e021;
+  --aimo-lime-soft: #ecf6bc;
+  --ok: #2f6b14;
+  --ok-bg: #ecf6bc;
+  --warn: #5c4700;
+  --warn-bg: #fff3b8;
+  --stop: #b3261e;
+  --stop-bg: #fde4e2;
+  --font: 'Open Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --head: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  --radius: 12px;
+  --radius: 4px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -135,3 +141,17 @@ thead th { color: var(--ink-soft); }
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
 }
+
+/* ---- Valio Aimo look ---- */
+h1, h2 { font-family: var(--head); font-weight: 600; color: var(--accent); letter-spacing: 0.005em; }
+h1 { font-size: clamp(2rem, 7vw, 2.75rem); }
+h2 { font-size: 1.6rem; }
+.top { background: var(--aimo-lavender); border-bottom: 0; }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--accent); text-decoration: none; font: 600 1.2rem/1 var(--head); text-transform: uppercase; }
+.brand img { display: block; }
+.top nav a { font-family: var(--head); font-size: 1.1rem; text-transform: uppercase; color: var(--accent); }
+.top nav a[aria-current='page'] { border-bottom-color: var(--aimo-lime); }
+.btn { border-radius: 4px; }
+.btn.primary { background: var(--aimo-lime); border-color: var(--aimo-lime); color: var(--accent); font-family: var(--head); font-size: 1.15rem; text-transform: uppercase; }
+.btn.primary:hover { background: #d3f03a; border-color: #d3f03a; }
+.badge { border-radius: 2px; }
