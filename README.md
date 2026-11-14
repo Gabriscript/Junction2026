@@ -6,6 +6,7 @@ Prototype of a trust layer that lets external AI purchasing agents look up, orde
 - [docs/challenge-brief.md](docs/challenge-brief.md) — the challenge, judging criteria, mentors
 - [docs/portal-notes.md](docs/portal-notes.md) — digest of the resource portal: mock API reference, datasets, field coverage
 - [docs/PLAN.md](docs/PLAN.md) — **final build plan to confirm**: scope, ownership, phases, reason codes, decisions
+- [docs/RECIPE-STEP.md](docs/RECIPE-STEP.md) — chef request "dish + servings" → ingredient lines (agent, for Step 7/9)
 - [docs/STRATEGY.md](docs/STRATEGY.md) — why: differentiators, architecture, demo script
 
 ## Secrets
