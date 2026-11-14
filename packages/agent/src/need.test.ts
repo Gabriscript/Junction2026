@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StructuredNeed } from './contract.js';
-import { createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from './llm.js';
+import { allergenCode, createProvider, extractNeed, MAX_QUANTITY, ruleParseNeed, type LLMProvider } from './llm.js';
 
 const NOW = new Date('2026-11-13T18:00:00Z'); // Friday
 const DEMO = 'I need 1,000 litres of lactose-free milk by Monday';
@@ -28,7 +28,7 @@ describe('rule parser (LLM_PROVIDER=none)', () => {
       quantity: 1000,
       unit: 'L',
       productQuery: 'milk',
-      attributes: ['lactose-free'],
+      attributes: ['LACTOSE_FREE'],
       freeFromAllergens: [],
       deliveryBy: '2026-11-16',
     });
@@ -39,7 +39,7 @@ describe('rule parser (LLM_PROVIDER=none)', () => {
       quantity: 2.5,
       unit: 'KG',
       productQuery: 'oat flour',
-      attributes: ['gluten-free'],
+      attributes: ['GLUTEN_FREE'],
       deliveryBy: '2026-11-14',
     });
   });
@@ -47,9 +47,9 @@ describe('rule parser (LLM_PROVIDER=none)', () => {
   it('defaults to pieces, reads allergens and ISO dates', () => {
     expect(ruleParseNeed('200 croissants without nuts by 2026-11-20', NOW)).toMatchObject({
       quantity: 200,
-      unit: 'PCS',
+      unit: 'ST',
       productQuery: 'croissants',
-      freeFromAllergens: ['nuts'],
+      freeFromAllergens: ['AN'],
       deliveryBy: '2026-11-20',
     });
   });
@@ -80,7 +80,7 @@ describe('rule parser (LLM_PROVIDER=none)', () => {
     ['500 g butter', 0.5, 'KG'],
     ['500 ml cream', 0.5, 'L'],
     ['3 dl cream', 0.3, 'L'],
-    ['200 green apples', 200, 'PCS'],
+    ['200 green apples', 200, 'ST'],
   ])('reads the number and unit in %j', (text, quantity, unit) => {
     expect(ruleParseNeed(text, NOW)).toMatchObject({ quantity, unit });
   });
@@ -131,11 +131,11 @@ describe('LLM output handling', () => {
 
   it('never lets LLM output drop a constraint or change a quantity the rules found', async () => {
     const text = '200 croissants without nuts, gluten free, by 2026-11-20';
-    const lenient = { quantity: 2000, unit: 'PCS', productQuery: 'croissants', attributes: ['vegan'], freeFromAllergens: ['egg'], deliveryBy: '2026-11-20' };
+    const lenient = { quantity: 2000, unit: 'ST', productQuery: 'croissants', attributes: ['VEGAN'], freeFromAllergens: ['AE'], deliveryBy: '2026-11-20' };
     const result = await extractNeed(text, fake(() => lenient), NOW);
     expect(result.usedFallback).toBe(false);
-    expect(result.need.attributes.sort()).toEqual(['gluten-free', 'vegan']);
-    expect(result.need.freeFromAllergens.sort()).toEqual(['egg', 'nuts']);
+    expect(result.need.attributes.sort()).toEqual(['GLUTEN_FREE', 'VEGAN']);
+    expect(result.need.freeFromAllergens.sort()).toEqual(['AE', 'AN']);
     expect(result.need.quantity).toBe(200);
     expect(result.notes?.join(' ')).toContain('quantity');
   });
@@ -232,5 +232,12 @@ describe('createProvider', () => {
     const result = await extractNeed(BUTTER, llm, NOW);
     expect(result).toMatchObject({ provider: 'anthropic', usedFallback: false, need: validNeed });
     expect(body.model).toBe('claude-haiku-5-5');
+  });
+});
+
+describe('allergenCode', () => {
+  it('maps kitchen words to GS1 codes through the shared table', () => {
+    expect(['milk', 'eggs', 'nuts', 'peanuts', 'soy', 'wheat', 'fish'].map(allergenCode)).toEqual(['AM', 'AE', 'AN', 'AP', 'AY', 'AW', 'AF']);
+    expect(allergenCode('unobtainium')).toBeUndefined();
   });
 });
