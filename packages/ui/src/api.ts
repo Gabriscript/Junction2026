@@ -8,7 +8,7 @@ import {
   type ToolInput,
   type ToolName,
 } from '@junction/shared';
-import type { AuditScope, UiOrder } from './contract';
+import type { AuditScope, MenuResult, UiOrder } from './contract';
 import { hashEvent } from './hash';
 import { auroraOrder, eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, weekOrder, type SeedEvent } from './mockData';
 import type { WeekOrder } from './kitchen';
@@ -25,6 +25,8 @@ export interface GatewayApi {
   submitRequest(text: string): Promise<UiOrder>;
   /** The week's order after the chef confirmed it in the chat; `text` is the read-back the agent works from. */
   submitWeek(lines: WeekOrder[], text: string): Promise<UiOrder>;
+  /** Whole menu → plan + one decision per ingredient (assistant server only; the mock has none). */
+  planMenu?(text: string, context?: { neededBy?: string | null }): Promise<MenuResult>;
 }
 
 /** REST path of a registry tool, with `{param}` placeholders filled from the input. */
@@ -83,6 +85,9 @@ export class HttpGatewayApi implements GatewayApi {
   // The real agent parses the confirmed read-back itself, so the lines are not sent.
   submitWeek(_lines: WeekOrder[], text: string) {
     return this.submitRequest(text);
+  }
+  async planMenu(text: string, context: { neededBy?: string | null } = {}) {
+    return (await this.call('POST', '/api/menu', { text, neededBy: context.neededBy ?? null })) as MenuResult;
   }
 
   subscribe(onEvent: (event: AuditEvent) => void) {

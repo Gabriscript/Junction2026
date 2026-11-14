@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Prototype of a Valio Aimo delivery-wholesale front page with an AI purchasing assistant (Junction 2026, synthetic data)." />
+    <title>Valio Aimo Delivery wholesale (prototype)</title>
+    <link rel="stylesheet" href="/src/shop/shop.css" />
+  </head>
+  <body>
+    <p class="proto">Prototype for Junction 2026 · synthetic data · not the real webshop</p>
+
+    <div class="topbar">
+      <div class="wrap topbar-in">
+        <nav aria-label="Valio Aimo services" class="services">
+          <a href="#">Valioaimo.fi</a>
+          <a href="#">Cash &amp; Carry</a>
+          <a href="#" aria-current="page">Delivery wholesale</a>
+          <a href="#">VALO Order Service</a>
+          <a href="#">My Aimo</a>
+        </nav>
+        <p class="account">Junction TestUser · EN</p>
+      </div>
+    </div>
+
+    <header class="masthead">
+      <div class="wrap masthead-in">
+        <a href="/shop.html" class="logo"><img src="/aimo-logo.svg" alt="Valio Aimo" width="96" height="33" /></a>
+        <nav aria-label="Main" class="mainnav">
+          <a href="#">Products</a>
+          <a href="#">Orders</a>
+          <a href="#">News</a>
+        </nav>
+        <label class="search">
+          <span class="sr">Search for products</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" /><path d="m20 20-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+          <input type="search" placeholder="Search for products" />
+        </label>
+        <div class="mini">
+          <span><small>Delivery date</small><b>18.11.2026</b></span>
+          <span><small>Cart</small><b>0,00 €</b></span>
+        </div>
+        <a class="cta cta-head" href="/#/new">Order with AI Assistant</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="wrap cats" aria-labelledby="cats-h">
+        <h2 id="cats-h">Browse product categories</h2>
+        <ul class="chips">
+          <li><a href="#">Fruits and Vegetables</a></li>
+          <li><a href="#">Fresh meat and fish</a></li>
+          <li><a href="#">Fresh products</a></li>
+          <li><a href="#">Industrial groceries</a></li>
+          <li><a href="#">Frozen food</a></li>
+          <li><a href="#">Nonfood</a></li>
+          <li><a href="#">Drinks</a></li>
+        </ul>
+      </section>
+
+      <section class="hero" aria-labelledby="hero-h">
+        <div class="wrap hero-in">
+          <div>
+            <p class="kicker">New</p>
+            <h2 id="hero-h">Order with your AI purchasing assistant</h2>
+            <p>Write or scan tonight's menu. The assistant turns it into an order, Valio Aimo signs every price, and you only approve the exceptions.</p>
+          </div>
+          <a class="cta" href="/#/new">Order with AI Assistant</a>
+        </div>
+      </section>
+
+      <section class="wrap offers" aria-labelledby="offers-h">
+        <h2 id="offers-h">On offer right now</h2>
+        <ul class="cards">
+          <li class="card"><span class="tag">Offer</span><div class="ph" aria-hidden="true"></div><h3>Barilla 5kg Fusilli dry pasta</h3><p class="price">18,14 € <small>excl. VAT</small></p></li>
+          <li class="card"><span class="tag tag-new">New product</span><div class="ph" aria-hidden="true"></div><h3>KNORR seasoning paste pesto 340g</h3><p class="price">12,42 € <small>excl. VAT</small></p></li>
+          <li class="card"><div class="ph" aria-hidden="true"></div><h3>Saclá 950g Pesto alla Genovese basil sauce</h3><p class="price">59,66 € <small>excl. VAT</small></p></li>
+          <li class="card"><span class="tag">Offer</span><div class="ph" aria-hidden="true"></div><h3>Suomen Jäätelö Vanilla ice cream 5l</h3><p class="price">39,67 € <small>excl. VAT</small></p></li>
+          <li class="card"><div class="ph" aria-hidden="true"></div><h3>GelatoLAB-Espoo 5L ice cream Chocolate lactose-free</h3><p class="price">26,85 € <small>excl. VAT</small></p></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <p>Prototype built by our team for the Valio Aimo "Trusted Trade Agents" challenge at Junction 2026. Products and prices come from the synthetic challenge dataset. Valio Aimo logo used with permission. This is not the real Valio Aimo webshop.</p>
+      </div>
+    </footer>
+  </body>
+</html>

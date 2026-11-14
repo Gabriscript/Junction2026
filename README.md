@@ -6,7 +6,10 @@ Prototype of a trust layer that lets external AI purchasing agents look up, orde
 - [docs/challenge-brief.md](docs/challenge-brief.md) — the challenge, judging criteria, mentors
 - [docs/portal-notes.md](docs/portal-notes.md) — digest of the resource portal: mock API reference, datasets, field coverage
 - [docs/PLAN.md](docs/PLAN.md) — **final build plan to confirm**: scope, ownership, phases, reason codes, decisions
+- [docs/DEMO-RUN.md](docs/DEMO-RUN.md) — **run the live demo**: webshop → AI Assistant → real gateway (3 local processes)
 - [docs/RECIPE-STEP.md](docs/RECIPE-STEP.md) — chef request "dish + servings" → ingredient lines (agent, for Step 7/9)
+- [docs/VIDEO.md](docs/VIDEO.md) — submission video storyboard (2:00) + catalogue/data check for the demo menu
+- [docs/VIDEO-SCRIPT.md](docs/VIDEO-SCRIPT.md) — shot-by-shot script with Gemini/Veo prompts + real recordings list
 - [docs/STRATEGY.md](docs/STRATEGY.md) — why: differentiators, architecture, demo script
 
 ## Secrets

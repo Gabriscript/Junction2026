@@ -4,17 +4,77 @@
  */
 import type { Suggestion } from './types.js';
 
-type Entry = { aliases: RegExp; suggestion: Suggestion };
+type Entry = { aliases: RegExp; suggestion: Suggestion } | { aliases: RegExp; build: (dishText: string) => Suggestion };
+
+/** Ice-cream flavours recognised in "gelato vaniglia e cioccolato" (typo-tolerant). */
+const FLAVOURS: Array<{ re: RegExp; name: string; search: string }> = [
+  { re: /vani(?:g|i)?l/i, name: 'vanilla', search: 'vanilla ice cream' },
+  { re: /cioc+o?lat|chocolate|suklaa/i, name: 'chocolate', search: 'chocolate ice cream' },
+  { re: /fragol|strawberr|mansikka/i, name: 'strawberry', search: 'strawberry ice cream' },
+  { re: /pistac|pistach/i, name: 'pistachio', search: 'pistachio ice cream' },
+];
+
+/** One scoop per flavour; with one flavour, two scoops. ~70 ml per scoop. */
+function buildGelato(dishText: string): Suggestion {
+  const found = FLAVOURS.filter((f) => f.re.test(dishText));
+  const flavours = found.length ? found : [{ name: 'vanilla', search: 'vanilla ice cream' }];
+  const perFlavour = found.length > 1 ? 70 : 140;
+  return {
+    dish: `gelato ${flavours.map((f) => f.name).join(' & ')}`,
+    ingredients: flavours.map((f) => ({
+      name: `${f.name} ice cream`,
+      searchText: f.search,
+      kind: 'dairy_liquid' as const,
+      category: '41820',
+      perServing: perFlavour,
+      unit: 'ml' as const,
+      attributes: [],
+      optional: false,
+    })),
+    assumptions: [
+      found.length ? `one ~70 ml scoop per flavour (${flavours.length} flavours)` : 'flavour not given, assumed vanilla',
+    ],
+  };
+}
 
 export const DISH_TABLE: Entry[] = [
+  {
+    aliases: /bruschett/i,
+    suggestion: {
+      dish: 'bruschette pomodorini, mozzarella e origano',
+      ingredients: [
+        { name: 'ciabatta bread', searchText: 'ciabatta', kind: 'bread_bakery', category: '41760', perServing: 60, unit: 'g', attributes: [], optional: false },
+        { name: 'pomodorini (small tomatoes)', searchText: 'tomato', kind: 'vegetable', category: '17401', perServing: 60, unit: 'g', attributes: [], optional: false },
+        { name: 'mozzarella', searchText: 'mozzarella', kind: 'cheese', category: '10637', perServing: 40, unit: 'g', attributes: [], optional: false },
+        { name: 'oregano', searchText: 'oregano', kind: 'herb_spice', category: '22630', perServing: 0.5, unit: 'g', attributes: [], optional: false },
+      ],
+      assumptions: ['2 bruschette per person as appetizer'],
+    },
+  },
+  {
+    aliases: /fusilli.*pesto|pesto.*fusilli/i,
+    suggestion: {
+      dish: 'fusilli al pesto',
+      ingredients: [
+        { name: 'fusilli', searchText: 'fusilli', kind: 'pasta_rice_grain', category: '21380', perServing: 100, unit: 'g', attributes: [], optional: false },
+        { name: 'pesto alla genovese', searchText: 'pesto', kind: 'sauce', category: '21917', perServing: 50, unit: 'g', attributes: [], optional: false },
+        { name: 'parmigiano reggiano (block, grated in the kitchen)', searchText: 'parmigiano', kind: 'cheese', category: '10600', perServing: 15, unit: 'g', attributes: [], optional: false },
+      ],
+      assumptions: ['ready-made pesto, not made in house'],
+    },
+  },
+  {
+    aliases: /gelato|ice ?cream|j[aä][aä]tel[oö]/i,
+    build: buildGelato,
+  },
   {
     aliases: /spaghetti.*pesto|pasta.*pesto|pesto.*(pasta|spaghetti)/i,
     suggestion: {
       dish: 'spaghetti al pesto',
       ingredients: [
         { name: 'spaghetti', searchText: 'spaghetti', kind: 'pasta_rice_grain', perServing: 100, unit: 'g', attributes: [], optional: false },
-        { name: 'pesto alla genovese', searchText: 'pesto', kind: 'sauce', perServing: 50, unit: 'g', attributes: [], optional: false },
-        { name: 'parmigiano grattugiato', searchText: 'parmesan', kind: 'cheese', perServing: 15, unit: 'g', attributes: [], optional: false },
+        { name: 'pesto alla genovese', searchText: 'pesto', kind: 'sauce', category: '21917', perServing: 50, unit: 'g', attributes: [], optional: false },
+        { name: 'parmigiano reggiano (block, grated in the kitchen)', searchText: 'parmigiano', kind: 'cheese', category: '10600', perServing: 15, unit: 'g', attributes: [], optional: false },
         { name: 'basilico fresco', searchText: 'basil', kind: 'herb_spice', perServing: 2, unit: 'g', attributes: [], optional: true },
       ],
       assumptions: ['ready-made pesto, not made in house', 'parmesan served grated at the table'],
@@ -49,5 +109,6 @@ export const DISH_TABLE: Entry[] = [
 
 export function lookupDish(dishText: string): Suggestion | null {
   const hit = DISH_TABLE.find((e) => e.aliases.test(dishText));
-  return hit ? structuredClone(hit.suggestion) : null;
+  if (!hit) return null;
+  return 'build' in hit ? hit.build(dishText) : structuredClone(hit.suggestion);
 }

@@ -24,3 +24,28 @@ export interface TraceStep {
 // shortcut: agentName, alternatives and trace are not in the shared Order yet; only the mock fills them,
 // the screens hide them when absent. Drop this once shared carries them (or the UI reads `explain`).
 export type UiOrder = Order & { agentName?: string; alternatives?: Alternative[]; trace?: TraceStep[] };
+
+/** Answer of the assistant server's POST /api/menu: the chef's menu planned and ordered line by line. */
+export interface MenuResult {
+  plan: {
+    servings: number;
+    meal: 'breakfast' | 'lunch' | 'dinner' | 'event' | null;
+    neededBy: string | null;
+    dishes: Array<{ dish: string; course: 'appetizer' | 'main' | 'dessert' | null }>;
+    assumptions: string[];
+    unknownDishes: string[];
+  };
+  lines: Array<{
+    name: string;
+    quantity: number;
+    unit: 'KG' | 'L' | 'ST';
+    usedIn: string[];
+    optional: boolean;
+    status: 'auto_approved' | 'needs_approval' | 'blocked' | 'not_ordered';
+    reasonCodes: string[];
+    orderId?: string;
+    product?: string;
+    netEur?: number;
+    note: string;
+  }>;
+}

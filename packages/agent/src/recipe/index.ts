@@ -4,3 +4,4 @@ export * from './portions.js';
 export * from './dish-table.js';
 export * from './suggesters.js';
 export * from './plan.js';
+export * from './menu.js';

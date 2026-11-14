@@ -10,7 +10,8 @@
     "build": "tsc --noEmit -p . && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:live": "VITE_GATEWAY_URL=/ vite --host 0.0.0.0"
   },
   "dependencies": {
     "@junction/shared": "*",
