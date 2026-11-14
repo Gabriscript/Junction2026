@@ -1,5 +1,6 @@
 // Scan, upload and speak: three ways for the chef to fill the request box without typing.
-//  - Scan: phone camera → photo → /api/scan (Claude reads the handwriting) → text in the box
+//  - Scan: on iPhone/iPad, Apple's Live Text ("Scan Text") in the text box: on-device OCR, no AI, no key
+//          elsewhere: camera/photo → /api/scan (Claude reads the handwriting) → text in the box
 //  - Upload: photo or PDF → /api/scan; CSV or Excel → read in the browser, one row per line
 //  - Speak: the browser's speech recognition (Safari / Chrome), needs HTTPS or localhost
 // The chef always sees and can edit the text before sending it.
@@ -22,6 +23,10 @@ function speechCtor(): (new () => Recognition) | undefined {
   const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
+
+/** iPhone / iPad (iPadOS reports itself as a Mac with touch): Live Text is built into Safari's text fields. */
+export const isAppleTouch = () =>
+  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 const toBase64 = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -72,7 +77,20 @@ export async function fileToText(file: File, api: GatewayApi): Promise<string> {
   throw new Error('Use a photo, PDF, CSV or Excel (.xlsx) file');
 }
 
-export function CaptureBar({ api, onText, idPrefix }: { api: GatewayApi; onText: (text: string, mode: 'replace' | 'append') => void; idPrefix: string }) {
+export function CaptureBar({
+  api,
+  onText,
+  idPrefix,
+  targetId,
+}: {
+  api: GatewayApi;
+  onText: (text: string, mode: 'replace' | 'append') => void;
+  idPrefix: string;
+  /** id of the text box that Live Text fills on iPhone */
+  targetId: string;
+}) {
+  const liveText = isAppleTouch();
+  const [hint, setHint] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [listening, setListening] = useState(false);
@@ -127,6 +145,14 @@ export function CaptureBar({ api, onText, idPrefix }: { api: GatewayApi; onText:
     setListening(true);
   };
 
+  // Live Text cannot be opened from JavaScript: focus the box (keyboard opens) and point at the Scan Text button
+  const startLiveText = () => {
+    setError(undefined);
+    const box = document.getElementById(targetId) as HTMLTextAreaElement | null;
+    box?.focus();
+    setHint('Tap the Scan Text button (the text-in-a-frame icon above the keyboard, or tap the box again → Scan Text), point the camera at the note, then Insert.');
+  };
+
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
     void readFile(input.files?.[0]).finally(() => (input.value = ''));
@@ -135,10 +161,18 @@ export function CaptureBar({ api, onText, idPrefix }: { api: GatewayApi; onText:
   return (
     <div className="capture">
       <div className="capture-buttons">
-        <label className="btn capture-btn" htmlFor={`${idPrefix}-camera`}>
-          Scan note
-        </label>
-        <input id={`${idPrefix}-camera`} className="sr-file" type="file" accept="image/*" capture="environment" onChange={onPick} />
+        {liveText ? (
+          <button type="button" className="btn capture-btn" onClick={startLiveText}>
+            Scan note
+          </button>
+        ) : (
+          <>
+            <label className="btn capture-btn" htmlFor={`${idPrefix}-camera`}>
+              Scan note
+            </label>
+            <input id={`${idPrefix}-camera`} className="sr-file" type="file" accept="image/*" capture="environment" onChange={onPick} />
+          </>
+        )}
         <label className="btn capture-btn" htmlFor={`${idPrefix}-file`}>
           Upload file
         </label>
@@ -154,7 +188,7 @@ export function CaptureBar({ api, onText, idPrefix }: { api: GatewayApi; onText:
         </button>
       </div>
       <p className="muted capture-status" role="status" aria-live="polite">
-        {busy ?? (listening ? 'Listening… speak your order, then tap Stop.' : 'Photo, PDF, CSV or Excel. You can check the text before sending.')}
+        {busy ?? (listening ? 'Listening… speak your order, then tap Stop.' : hint ?? 'Photo, PDF, CSV or Excel. You can check the text before sending.')}
       </p>
       {error && (
         <p className="error" role="alert">
