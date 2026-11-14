@@ -48,7 +48,7 @@ What this gives the demo with **real data only**:
 - Substitution: pomodorini → regular tomatoes (needs chef: different product).
 - Pack trade-off: fusilli only in a 5 kg bag (we need 1 kg) → cheapest per kg but 4 kg left over; the agent shows the rounding.
 - Unverified stock: Saclà pesto, tomatoes → `UNVERIFIED_STOCK`.
-- Vanilla is available: a "sold out" scene must be a **declared simulated scenario** (demo switch in the gateway, listed in ASSUMPTIONS.md), never only a caption in the video.
+- **Team decision (2026-11-14): real exceptions only.** Vanilla is available, so there is no "vanilla sold out" scene and no simulated stock-out. The video shows only what the system really returns.
 
 ## Recipes: where they come from
 - Today: an LLM (Claude Haiku) proposes ingredients for **any** dish (`anthropicSuggester`, needs `LLM_PROVIDER=anthropic` + key); the fixed table is the offline fallback.
