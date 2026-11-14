@@ -312,3 +312,40 @@ describe('runAgent with none + MockGateway', () => {
     expect(propose.trace.map((s) => s.action)).toContain('select_offer');
   });
 });
+
+describe('review fixes: mandate constraints, allergen groups, neededBy, price binding', () => {
+  it('applies the mandate forbidden allergens and required attributes before choosing', async () => {
+    const result = await runAgent(DEMO, await deps(new MockGateway({ now: () => NOW })).then((d) => ({ ...d, mandate: { ...hotelMandate, forbiddenAllergens: ['AM'] } })));
+    expect(result.ordered).toBe(false); // every mock product contains milk
+    const search = result.trace.find((s) => s.action === 'search_products')?.input ?? '';
+    expect(JSON.parse(search)).toMatchObject({ attributes: ['LACTOSE_FREE'], freeFromAllergens: ['AM'] });
+  });
+
+  it('treats a nut-free request as free from every tree nut, and CONTAINS beats FREE_FROM', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const genuine = gateway.search_products.bind(gateway);
+    gateway.search_products = async (input) => {
+      const out = await genuine({ ...input, freeFromAllergens: [] });
+      return { ...out, products: out.products.map((p) => ({ ...p, allergens: p.id === P.lfCase12 ? [{ code: 'SH', level: 'CONTAINS' as const }] : [{ code: 'AN', level: 'FREE_FROM' as const }, { code: 'AN', level: 'CONTAINS' as const }] })) };
+    };
+    const result = await runAgent('1,000 litres of nut-free lactose-free milk by Monday', await deps(gateway));
+    expect(result.ordered).toBe(false);
+  });
+
+  it('without a date, needs the goods on the chosen offer date, not on an invented one', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const propose = vi.spyOn(gateway, 'propose_order');
+    await runAgent('I need 1,000 litres of lactose-free milk', await deps(gateway));
+    expect(propose.mock.calls[0]?.[0].neededBy).toBe('2026-11-14'); // mock delivers next day
+  });
+
+  it('rejects an order response priced differently from the signed offer', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const genuine = gateway.propose_order.bind(gateway);
+    gateway.propose_order = async (input) => {
+      const { order } = await genuine(input);
+      return { order: { ...order, lines: order.lines.map((line) => ({ ...line, unitPrice: line.unitPrice + 1 })) } };
+    };
+    expect(await runAgent(DEMO, await deps(gateway))).toMatchObject({ ordered: false, status: 'blocked' });
+  });
+});

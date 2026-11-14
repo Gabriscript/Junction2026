@@ -79,9 +79,21 @@ function matchesNeed(product: Product, need: StructuredNeed): boolean {
   if (!need.attributes.every((attribute) => product.attributes.includes(attribute))) return false;
   return need.freeFromAllergens.every((code) => {
     const levels = product.allergens.filter((allergen) => allergen.code === code).map((allergen) => allergen.level);
+    if (levels.includes('CONTAINS') || levels.includes('MAY_CONTAIN')) return false; // contradictory data: CONTAINS wins, as in the gateway policy
     return levels.includes('FREE_FROM') || (product.allergens.length > 0 && !levels.length);
   });
 }
+
+// GS1 group codes: "nut-free" must also exclude hazelnuts (SH), "wheat-free" spelt (GS), gluten cereals every grain
+const ALLERGEN_GROUPS: Record<string, string[]> = { AN: ['SA', 'SC', 'SH', 'SM', 'SP', 'SR', 'SW'], AW: ['GS'], UW: ['AW', 'GB', 'GO', 'GS', 'NR'] };
+const expandAllergens = (codes: string[]) => [...new Set(codes.flatMap((code) => [code, ...(ALLERGEN_GROUPS[code] ?? [])]))];
+
+/** The need tightened by the mandate's hard constraints, so the agent does not pick a product the gateway will block. */
+const withMandate = (need: StructuredNeed, mandate: Mandate): StructuredNeed => ({
+  ...need,
+  attributes: [...new Set([...need.attributes, ...mandate.requiredAttributes])],
+  freeFromAllergens: expandAllergens([...need.freeFromAllergens, ...mandate.forbiddenAllergens]),
+});
 
 export const cheapest: SelectOffer = (candidates) => [...candidates].sort((a, b) => a.totalCents - b.totalCents)[0];
 
@@ -110,10 +122,11 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
 
   // nothing the gateway sends or fails to send may crash the run: stop, blocked, and keep the trace
   try {
-    const search = { text: need.productQuery, attributes: need.attributes, freeFromAllergens: need.freeFromAllergens, unit: need.unit };
+    const want = withMandate(need, deps.mandate);
+    const search = { text: need.productQuery, attributes: want.attributes, freeFromAllergens: want.freeFromAllergens, unit: need.unit };
     const { products } = parseOutput('search_products', await gateway.search_products(search));
     // shortcut: only products whose net content is in the need's unit, convert L↔KG↔ST in step 8
-    const matching = products.filter((product) => matchesNeed(product, need));
+    const matching = products.filter((product) => matchesNeed(product, want));
     const excluded = products.length - matching.length;
     const shortlist = matching.filter((product) => packSizeOf(product, need.unit)).slice(0, SHORTLIST_SIZE);
     step(
@@ -212,7 +225,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     }
 
     const lines = [{ offerId: chosen.offer.offerId, offerJws: chosen.jws, quantity: chosen.pack.packs, substituteFor: null }];
-    const proposal = { agentId, mandate: deps.mandate, lines, neededBy: requestedDate, requestText: text, rationale: `Cheapest verified offer: ${chosen.pack.note}` };
+    const proposal = { agentId, mandate: deps.mandate, lines, neededBy: need.deliveryBy ?? chosen.offer.availableDate ?? requestedDate, requestText: text, rationale: `Cheapest verified offer: ${chosen.pack.note}` };
     const response = await gateway.propose_order(proposal);
     let order: Order;
     try {
@@ -221,8 +234,8 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
       return stop('the order response is not a valid order: order state unknown, check the gateway');
     }
     // the response is as untrusted as any other gateway output: it must be an order for exactly what was proposed
-    const orderedLines = order.lines.map((line) => [line.offerId, line.quantity]);
-    if (!isDeepStrictEqual(orderedLines, lines.map((line) => [line.offerId, line.quantity]))) {
+    const orderedLines = order.lines.map((line) => [line.offerId, line.quantity, line.unitPrice]);
+    if (!isDeepStrictEqual(orderedLines, lines.map((line) => [line.offerId, line.quantity, chosen.offer.unitPrice]))) {
       return stop('the order response does not match the proposal: order state unknown, check the gateway');
     }
     step(
