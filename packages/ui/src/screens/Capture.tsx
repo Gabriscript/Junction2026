@@ -1,5 +1,6 @@
 // Scan, upload and speak: three ways for the chef to fill the request box without typing.
-//  - Scan: phone camera → photo → /api/scan (Claude reads the handwriting) → text in the box
+//  - Scan: on iPhone/iPad, Apple's Live Text ("Scan Text") in the text box: on-device OCR, no AI, no key
+//          elsewhere: camera/photo → /api/scan (Claude reads the handwriting) → text in the box
 //  - Upload: photo or PDF → /api/scan; CSV or Excel → read in the browser, one row per line
 //  - Speak: the browser's speech recognition (Safari / Chrome), needs HTTPS or localhost
 // The chef always sees and can edit the text before sending it.
@@ -23,6 +24,10 @@ function speechCtor(): (new () => Recognition) | undefined {
   const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
+
+/** iPhone / iPad (iPadOS reports itself as a Mac with touch): Live Text is built into Safari's text fields. */
+export const isAppleTouch = () =>
+  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 const toBase64 = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -88,14 +93,19 @@ export function CaptureBar({
   onText,
   hasText,
   working,
+  targetId,
   children,
 }: {
   api: GatewayApi;
   onText: (text: string, mode: 'replace' | 'append') => void;
   hasText: boolean;
   working?: string;
+  /** id of the text field that Live Text fills on iPhone */
+  targetId: string;
   children: ReactNode;
 }) {
+  const liveText = isAppleTouch();
+  const [hint, setHint] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [listening, setListening] = useState(false);
@@ -191,6 +201,14 @@ export function CaptureBar({
     setListening(true);
   };
 
+  // Live Text cannot be opened from JavaScript: focus the field (keyboard opens) and point at the Scan Text button
+  const startLiveText = () => {
+    setMenuOpen(false);
+    setError(undefined);
+    document.getElementById(targetId)?.focus();
+    setHint('Tap Scan Text above the keyboard (or tap the box again → Scan Text), point at the note, then Insert.');
+  };
+
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
     void readFile(input.files?.[0]).finally(() => (input.value = ''));
@@ -218,7 +236,7 @@ export function CaptureBar({
                 <Icon name="image" />
                 Photo
               </button>
-              <button type="button" role="menuitem" onClick={() => pick(camera.current)}>
+              <button type="button" role="menuitem" onClick={() => (liveText ? startLiveText() : pick(camera.current))}>
                 <Glyph d={CAMERA} />
                 Camera
               </button>
@@ -250,7 +268,7 @@ export function CaptureBar({
         </div>
       </div>
       <p className="muted capture-status" role="status" aria-live="polite">
-        {busy ?? (listening ? 'Listening… speak your order, then tap the mic again.' : (working ?? ''))}
+        {busy ?? (listening ? 'Listening… speak your order, then tap the mic again.' : (working ?? (hasText ? '' : (hint ?? ''))))}
       </p>
       {error && (
         <p className="error" role="alert">

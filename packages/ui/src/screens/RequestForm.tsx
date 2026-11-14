@@ -223,6 +223,7 @@ export function RequestForm({ api }: { api: GatewayApi }) {
           {started ? 'Correction or new order' : 'What do you need?'}
         </label>
         <CaptureBar
+          targetId="request-text"
           api={api}
           hasText={!!value.trim()}
           working={busy ? 'Planning and ordering…' : followBusy ? 'Ordering…' : undefined}
