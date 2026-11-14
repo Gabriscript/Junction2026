@@ -1,0 +1,82 @@
+{
+  "endpoint": "/api/availability",
+  "request": {
+    "customer": "123",
+    "requestedDate": "2026-11-17",
+    "products": [
+      "464073",
+      "464201",
+      "463335",
+      "462775",
+      "000000"
+    ]
+  },
+  "status": 200,
+  "body": {
+    "timeNow": "2026-11-14T00:21:26+0200",
+    "requestedDate": "2026-11-17T00:00:00+0200",
+    "products": [
+      {
+        "productId": "464073",
+        "closingTime": "2026-11-15T17:00:00+0200",
+        "salesBlock": false,
+        "logisticModel": "Stock",
+        "scheduleLines": [
+          {
+            "salesBlock": false,
+            "availableAmount": 9999999999,
+            "availableDate": "2026-11-16",
+            "salesUnit": "ST"
+          }
+        ]
+      },
+      {
+        "productId": "464201",
+        "closingTime": "2026-11-15T17:00:00+0200",
+        "salesBlock": false,
+        "logisticModel": "Stock",
+        "scheduleLines": [
+          {
+            "salesBlock": false,
+            "availableAmount": 9999999999,
+            "availableDate": "2026-11-16",
+            "salesUnit": "ST"
+          }
+        ]
+      },
+      {
+        "productId": "463335",
+        "closingTime": "2026-11-15T17:00:00+0200",
+        "salesBlock": false,
+        "logisticModel": "Stock",
+        "scheduleLines": [
+          {
+            "salesBlock": false,
+            "availableAmount": 9999999999,
+            "availableDate": "2026-11-16",
+            "salesUnit": "ST"
+          }
+        ]
+      },
+      {
+        "productId": "462775",
+        "closingTime": "2026-11-15T17:00:00+0200",
+        "salesBlock": false,
+        "logisticModel": "Stock",
+        "scheduleLines": [
+          {
+            "salesBlock": false,
+            "availableAmount": 51,
+            "availableDate": "2026-11-16",
+            "salesUnit": "ST"
+          }
+        ]
+      },
+      {
+        "productId": "000000",
+        "salesBlock": false,
+        "scheduleLines": []
+      }
+    ]
+  }
+}
