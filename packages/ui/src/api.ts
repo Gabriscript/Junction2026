@@ -8,7 +8,7 @@ import {
   type ToolInput,
   type ToolName,
 } from '@junction/shared';
-import type { AuditScope, UiOrder } from './contract';
+import type { AuditScope, MenuResult, UiOrder } from './contract';
 import { hashEvent } from './hash';
 import { eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, type SeedEvent } from './mockData';
 
@@ -22,6 +22,8 @@ export interface GatewayApi {
   /** Calls back for every new audit event. Returns an unsubscribe function. */
   subscribe(onEvent: (event: AuditEvent) => void): () => void;
   submitRequest(text: string): Promise<UiOrder>;
+  /** Whole menu → plan + one decision per ingredient (assistant server only; the mock has none). */
+  planMenu?(text: string): Promise<MenuResult>;
 }
 
 /** REST path of a registry tool, with `{param}` placeholders filled from the input. */
@@ -76,6 +78,9 @@ export class HttpGatewayApi implements GatewayApi {
   }
   async submitRequest(text: string) {
     return OrderSchema.parse(await this.call('POST', '/api/requests', { text }));
+  }
+  async planMenu(text: string) {
+    return (await this.call('POST', '/api/menu', { text })) as MenuResult;
   }
 
   subscribe(onEvent: (event: AuditEvent) => void) {

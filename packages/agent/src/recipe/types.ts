@@ -47,6 +47,8 @@ export const SuggestedIngredientSchema = z.object({
   attributes: z.array(z.string()),
   /** Optional ingredient (garnish etc.): skipped when it cannot be sourced. */
   optional: z.boolean(),
+  /** Aimo category code that narrows the catalogue search (e.g. "17401" fresh tomatoes). Table recipes set it; LLM ones may not. */
+  category: z.string().regex(/^\d{3,6}$/).optional(),
 });
 export type SuggestedIngredient = z.infer<typeof SuggestedIngredientSchema>;
 

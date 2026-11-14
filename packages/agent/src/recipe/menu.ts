@@ -81,6 +81,7 @@ export async function planMenu(text: string, opts: PlanMenuOptions = {}): Promis
   let meal: MenuPlan['meal'] = null;
   let neededBy: string | null = null;
   const dishSegments: Array<{ dishText: string; course: Course | null }> = [];
+  let pendingCourse: Course | null = null;
 
   for (const raw of text.replace(NOISE, ' ').split(/[\n;,:]+/)) {
     if (!raw.trim()) continue;
@@ -92,7 +93,13 @@ export async function planMenu(text: string, opts: PlanMenuOptions = {}): Promis
       assumptions.push(...p.notes);
     }
     const { dishText, course } = stripCourse(p.dishText);
-    if (dishText) dishSegments.push({ dishText, course });
+    // "Dessert: gelato…" is split at the colon: a lone course word applies to the next dish
+    if (!dishText) {
+      if (course) pendingCourse = course;
+      continue;
+    }
+    dishSegments.push({ dishText, course: course ?? pendingCourse });
+    pendingCourse = null;
   }
 
   if (dishSegments.length === 0) throw new RecipeError('No dish found in the request', 'NO_DISH');

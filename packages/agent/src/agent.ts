@@ -41,6 +41,8 @@ export interface AgentDeps {
   trust: Trust;
   /** Buyer mandate, sent with the order. Its budget (EUR incl. VAT) is also enforced locally. */
   mandate: Mandate;
+  /** Optional Aimo category code to narrow the catalogue search (set per ingredient by the recipe step). */
+  category?: string;
   /** Extension point for step 8 (ranking, substitution, partial fill). Default: cheapest total. */
   select?: SelectOffer;
   /** Usual order size per product words, e.g. { milk: 500 L a week }. Synthetic in the demo: the dataset has no order history. */
@@ -159,7 +161,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
   // nothing the gateway sends or fails to send may crash the run: stop, blocked, and keep the trace
   try {
     const want = withMandate(need, deps.mandate);
-    const search = { text: need.productQuery, attributes: want.attributes, freeFromAllergens: want.freeFromAllergens, unit: need.unit };
+    const search = { text: need.productQuery, attributes: want.attributes, freeFromAllergens: want.freeFromAllergens, unit: need.unit, ...(deps.category ? { category: deps.category } : {}) };
     const { products } = parseOutput('search_products', await gateway.search_products(search));
     // shortcut: only products whose net content is in the need's unit, convert L↔KG↔ST in step 8
     const matching = products.filter((product) => matchesNeed(product, want));

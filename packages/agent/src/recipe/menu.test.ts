@@ -48,6 +48,19 @@ describe('planMenu', () => {
     expect(plan.unknownDishes).toEqual(['beef wellington']);
   });
 
+  it('keeps "Course: dish" labels from a written note', async () => {
+    const plan = await planMenu('Monday dinner, 10 people\nAppetizer: bruschette pomodorini\nFusilli al pesto\nDessert: gelato vaniglia', {
+      suggester: tableSuggester,
+      today: TODAY,
+    });
+    expect(plan.dishes.map((d) => d.course)).toEqual(['appetizer', null, 'dessert']);
+  });
+
+  it('recognises the Italian spelling vaniglia', async () => {
+    const plan = await planMenu('dessert for 4: gelato vaniglia e cioccolato', { suggester: tableSuggester, today: TODAY });
+    expect(plan.lines.map((l) => l.searchText)).toEqual(['vanilla ice cream', 'chocolate ice cream']);
+  });
+
   it('errors when no dish can be planned', async () => {
     await expect(planMenu('dinner for 4, beef wellington', { suggester: tableSuggester, today: TODAY })).rejects.toBeInstanceOf(
       RecipeError,
