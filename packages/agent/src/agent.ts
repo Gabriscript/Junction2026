@@ -82,7 +82,9 @@ export function unusualQuantity(need: Pick<StructuredNeed, 'quantity' | 'unit' |
   const high = need.quantity >= UNUSUAL_RATIO * usual.quantity;
   if (!high && need.quantity * UNUSUAL_RATIO > usual.quantity) return undefined;
   const typo = high ? need.quantity / 10 : need.quantity * 10;
-  const hint = typo >= usual.quantity / 2 && typo <= usual.quantity * 2 ? `did you mean ${qty(typo)} ${need.unit}?` : 'please confirm the quantity';
+  const plausibleTypo = typo >= usual.quantity / 2 && typo <= usual.quantity * 2;
+  if (!high && !plausibleTypo) return undefined; // a small top-up is normal: only a missing zero is worth asking about
+  const hint = plausibleTypo ? `did you mean ${qty(typo)} ${need.unit}?` : 'please confirm the quantity';
   const difference = `${qty(Math.abs(need.quantity - usual.quantity))} ${need.unit} ${high ? 'more' : 'less'}`;
   return `${qty(need.quantity)} ${need.unit} of ${need.productQuery} is ${difference} than usual (${qty(usual.quantity)} ${need.unit} a ${usual.period}): ${hint}`;
 }

@@ -5,43 +5,74 @@ const MARGHERITA = DEMO_MENU.filter((dish) => dish.name === 'pizza margherita');
 const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
 
 /**
- * Outside judge: for 20 seeded histories, the last 4 weeks are held out. Each held-out week is
- * reviewed as it really was (must raise nothing), then with one planted slip at a time: a dropped
- * item, ×10, ÷10. Every slip must be caught, and nothing else may be flagged.
+ * Outside judge: 20 seeded histories, the last 4 weeks held out. The past weeks get 10 % random
+ * legitimate skips (a kitchen does not order like clockwork), so rhythms must be estimated, not
+ * read back. Each held-out week is reviewed as it was (no alarm wanted), then with one planted slip
+ * at a time. Slips of ×10 / ÷10 and dropped items must be caught; ×2 is deliberately not flagged
+ * (normal busy-week variation) and the test pins that limit.
  */
+const lcg = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
 describe('reviewWeek against planted slips on held-out weeks', () => {
   const runs = SEEDS.flatMap((seed) => {
     const history = syntheticHistory(seed, 16, '2026-11-16');
-    return [12, 13, 14, 15].map((i) => ({ seed, i, past: history.slice(0, i), week: history[i]!.orders }));
+    const skip = lcg(seed * 7919);
+    const past = history.slice(0, 12).map((week) => ({ ...week, orders: week.orders.filter(() => skip() >= 0.1) }));
+    return [12, 13, 14, 15].map((i) => ({ past: [...past, ...history.slice(12, i)], week: history[i]!.orders }));
   });
 
   it('raises no false alarm on the real held-out weeks', () => {
-    const alarms = runs.flatMap(({ past, week }) => reviewWeek(past, MARGHERITA, week));
-    expect(alarms).toEqual([]);
+    expect(runs.flatMap(({ past, week }) => reviewWeek(past, MARGHERITA, week))).toEqual([]);
   });
 
-  it('catches every planted slip and flags nothing else', () => {
-    let planted = 0;
-    let caught = 0;
-    const extra: string[] = [];
+  it('catches dropped items and missing or extra zeros, and stays quiet at ×2', () => {
+    const tally: Record<string, { planted: number; caught: number }> = {};
+    let extra = 0;
     for (const { past, week } of runs) {
       for (const order of week) {
-        const slips: [WeekOrder[], 'missing' | 'quantity'][] = [
-          [week.filter((o) => o !== order), 'missing'],
-          [week.map((o) => (o === order ? { ...o, quantity: o.quantity * 10 } : o)), 'quantity'],
-          [week.map((o) => (o === order ? { ...o, quantity: o.quantity / 10 } : o)), 'quantity'],
+        const slips: [string, WeekOrder[], 'missing' | 'quantity'][] = [
+          ['drop', week.filter((o) => o !== order), 'missing'],
+          ['x10', week.map((o) => (o === order ? { ...o, quantity: o.quantity * 10 } : o)), 'quantity'],
+          ['/10', week.map((o) => (o === order ? { ...o, quantity: o.quantity / 10 } : o)), 'quantity'],
+          ['x2', week.map((o) => (o === order ? { ...o, quantity: o.quantity * 2 } : o)), 'quantity'],
         ];
-        for (const [slipped, kind] of slips) {
-          planted++;
+        for (const [name, slipped, kind] of slips) {
+          const t = (tally[name] ??= { planted: 0, caught: 0 });
+          t.planted++;
           const findings = reviewWeek(past, MARGHERITA, slipped);
-          if (findings.some((f) => f.item === order.item && f.kind === kind)) caught++;
-          extra.push(...findings.filter((f) => f.item !== order.item).map((f) => f.message));
+          if (findings.some((f) => f.item === order.item && f.kind === kind)) t.caught++;
+          extra += findings.filter((f) => f.item !== order.item).length;
         }
       }
     }
-    expect(planted).toBeGreaterThan(1000);
-    expect(caught / planted).toBe(1); // recall 100 %
-    expect(extra).toEqual([]); // no false alarms next to a real slip
+    const recall = (name: string) => tally[name]!.caught / tally[name]!.planted;
+    expect(tally['drop']!.planted).toBeGreaterThan(400);
+    expect(recall('drop')).toBeGreaterThanOrEqual(0.95); // a skip right before the held-out week can hide a rhythm
+    expect(recall('x10')).toBe(1);
+    expect(recall('/10')).toBe(1);
+    expect(recall('x2')).toBe(0); // documented limit: below ×3 is not flagged
+    expect(extra).toBe(0);
+  });
+});
+
+describe('reviewWeek edge cases', () => {
+  const week = (item: string, quantity: number, unit: WeekOrder['unit'] = 'KG'): WeekOrder => ({ item, quantity, unit });
+  const weekly = (n: number, orders: WeekOrder[]) => Array.from({ length: n }, (_, i) => ({ week: `w${i}`, orders }));
+
+  it('does not call an item dropped from the menu long ago forgotten', () => {
+    const history = [...weekly(6, [week('pumpkin', 5), week('salt', 1)]), ...weekly(7, [week('salt', 1)])];
+    expect(reviewWeek(history, [], [week('salt', 1)])).toEqual([]);
+  });
+
+  it('flags another unit, sums duplicate lines, and ignores spelling differences', () => {
+    const history = weekly(6, [week('milk', 500, 'L'), week('Würstel', 10)]);
+    expect(reviewWeek(history, [{ name: 'pizza tedesca', ingredients: ['wurstel'] }], [week('milk', 500, 'KG'), week('wurstel', 5), week('wurstel', 5)]).map((f) => f.message)).toEqual([
+      '500 KG of milk: usually ordered in L (about 500 L), please check the unit',
+    ]);
+  });
+
+  it('lets a small top-up through but asks about a missing zero', () => {
+    const history = weekly(6, [week('salt', 10), week('milk', 500, 'L')]);
+    expect(reviewWeek(history, [], [week('salt', 3), week('milk', 50, 'L')]).map((f) => f.item)).toEqual(['milk']);
   });
 });
 

@@ -39,22 +39,27 @@ const median = (values: number[]) => {
   const mid = sorted.length >> 1;
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 };
-// usual amounts are estimates: whole units from 10 up, two decimals below
-const nice = (value: number) => (value >= 10 ? Math.round(value) : Math.round(value * 100) / 100);
+// usual amounts are estimates: whole units from 10 up, two decimals below (never rounded down to 0)
+const nice = (value: number) => (value >= 10 ? Math.round(value) : Math.round(value * 100) / 100 || value);
 const fmt = (value: number) => nice(value).toLocaleString('en-US', { maximumFractionDigits: 2 });
+/** One spelling per item: "Würstel " and "wurstel" are the same thing. */
+const key = (item: string) => item.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 // below this many orders an item has no reliable rhythm: never flag it as missing
 const MIN_ORDERS = 3;
+// an item not ordered for this many of its rhythms was dropped from the menu, not forgotten
+const DROPPED_AFTER = 3;
 
 export function parLevels(history: PastWeek[]): Map<string, Par> {
   const pars = new Map<string, Par>();
-  const items = new Set(history.flatMap((week) => week.orders.map((order) => order.item)));
+  const items = new Set(history.flatMap((week) => week.orders.map((order) => key(order.item))));
   for (const item of items) {
-    const weeks = history.flatMap((week, index) => week.orders.filter((o) => o.item === item).map((o) => ({ index, order: o })));
+    const weeks = history.flatMap((week, index) => week.orders.filter((o) => key(o.item) === item).map((o) => ({ index, order: o })));
     const first = weeks[0]!;
     const last = weeks.at(-1)!;
+    const unit = first.order.unit;
     pars.set(item, {
-      unit: first.order.unit,
-      median: median(weeks.map((w) => w.order.quantity)),
+      unit,
+      median: median(weeks.filter((w) => w.order.unit === unit).map((w) => w.order.quantity)), // never mix units
       every: Math.max(1, Math.round((history.length - first.index) / weeks.length)),
       count: weeks.length,
       weeksSince: history.length - last.index,
@@ -68,22 +73,33 @@ export const usualFromHistory = (history: PastWeek[]): Record<string, Usual> =>
   Object.fromEntries([...parLevels(history)].map(([item, par]) => [item, { quantity: nice(par.median), unit: par.unit, period: par.every === 1 ? 'week' : `${par.every} weeks` }]));
 
 /**
- * Questions for the chef before the week's orders go out: a quantity far from the usual one, a
- * regular item that is due but not ordered, a menu ingredient never ordered. One finding per item.
+ * Questions for the chef before the week's orders go out: a quantity far from the usual one or in
+ * another unit, a regular item that is due but not ordered, a menu ingredient never ordered.
+ * One finding per item; several lines of the same item and unit count as one.
  */
 export function reviewWeek(history: PastWeek[], menu: Dish[], thisWeek: WeekOrder[]): Finding[] {
   const pars = parLevels(history);
   const usual = usualFromHistory(history);
-  const ordered = new Set(thisWeek.map((order) => order.item));
-  const dishesUsing = (item: string) => menu.filter((dish) => dish.ingredients.includes(item)).map((dish) => dish.name);
+  const lines = new Map<string, WeekOrder>();
+  for (const order of thisWeek) {
+    const id = `${key(order.item)}|${order.unit}`;
+    const seen = lines.get(id);
+    lines.set(id, { item: key(order.item), unit: order.unit, quantity: (seen?.quantity ?? 0) + order.quantity });
+  }
+  const ordered = new Set([...lines.values()].map((order) => order.item));
+  const dishesUsing = (item: string) => menu.filter((dish) => dish.ingredients.map(key).includes(item)).map((dish) => dish.name);
   const findings: Finding[] = [];
 
-  for (const order of thisWeek) {
-    const warning = unusualQuantity({ quantity: order.quantity, unit: order.unit, productQuery: order.item }, usual[order.item]);
+  for (const order of lines.values()) {
+    const par = pars.get(order.item);
+    const warning =
+      par && par.unit !== order.unit
+        ? `${fmt(order.quantity)} ${order.unit} of ${order.item}: usually ordered in ${par.unit} (about ${fmt(par.median)} ${par.unit}), please check the unit`
+        : unusualQuantity({ quantity: order.quantity, unit: order.unit, productQuery: order.item }, usual[order.item]);
     if (warning) findings.push({ kind: 'quantity', item: order.item, message: warning });
   }
   for (const [item, par] of pars) {
-    if (ordered.has(item) || par.count < MIN_ORDERS || par.weeksSince < par.every) continue;
+    if (ordered.has(item) || par.count < MIN_ORDERS || par.weeksSince < par.every || par.weeksSince > DROPPED_AFTER * par.every) continue;
     const dishes = dishesUsing(item);
     const rhythm = par.every === 1 ? 'every week' : `every ${par.every} weeks`;
     findings.push({
@@ -92,7 +108,7 @@ export function reviewWeek(history: PastWeek[], menu: Dish[], thisWeek: WeekOrde
       message: `you usually order ${item} ${rhythm} (about ${fmt(par.median)} ${par.unit}${dishes.length ? `, used in ${dishes.join(', ')}` : ''}), not in this week's orders: forgotten?`,
     });
   }
-  const needed = [...new Set(menu.flatMap((dish) => dish.ingredients))];
+  const needed = [...new Set(menu.flatMap((dish) => dish.ingredients.map(key)))];
   for (const item of needed) {
     if (ordered.has(item) || pars.has(item)) continue; // known items are judged by their rhythm above
     findings.push({ kind: 'menu', item, message: `${dishesUsing(item).join(', ')} needs ${item}: never ordered before and not in this week's orders` });
