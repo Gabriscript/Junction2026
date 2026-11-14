@@ -436,3 +436,14 @@ a.brand { text-decoration: none; color: inherit; }
 .capture-btn.listening { background: var(--lime); border-color: var(--lime); color: var(--ink); }
 .capture-status { font-size: 0.875rem; }
 .sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+
+/* quiet reason tags: one line, small, expandable */
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.reason { display: inline-flex; align-items: flex-start; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 0; font-size: 0.8125rem; }
+.reason .icon { width: 14px; height: 14px; margin-top: 3px; }
+.reason details[open] { border-radius: 8px; }
+.reason summary { cursor: pointer; list-style: none; }
+.reason summary::-webkit-details-marker { display: none; }
+.reason strong { font-weight: 600; }
+.ordered-list { margin-top: 10px; }
+.ordered-list summary { cursor: pointer; color: var(--accent); font-weight: 600; }
