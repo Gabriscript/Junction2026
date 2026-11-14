@@ -1,34 +1,30 @@
 // Small shared pieces: formatting, status badge, reason chips, live data hook.
 import { useEffect, useRef, useState } from 'react';
 import type { GatewayApi } from './api';
-import type { Order, OrderStatus, ReasonCode } from './contract';
-import { REASONS } from './reasons';
+import { REASON_CODE_INFO, type DecisionStatus, type EurAmount, type OrderStatus, type ReasonCode } from '@junction/shared';
+import type { UiOrder } from './contract';
 
 const eurFormat = new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' });
-/** Money travels as integer euro cents; this is the only place it becomes "1 899,00 €". */
-export const eur = (cents: number) => eurFormat.format(cents / 100);
+/** Money travels as decimal EUR (shared convention); this is the only place it becomes "1 899,00 €". */
+export const eur = (amount: EurAmount) => eurFormat.format(amount);
+
+/** VAT rate in percent (shared convention), e.g. 13.5 -> "13,5 %". */
+export const vatPercent = (rate: number) => `${rate.toLocaleString('fi-FI')} %`;
 
 export const time = (ts: string) =>
   new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 export const shortHash = (hash: string) => hash.slice(0, 8);
 
-export function orderTotals(order: Order) {
-  let net = 0;
-  let vat = 0;
-  for (const line of order.lines) {
-    const lineNet = line.quantity * line.signedOffer.offer.unitPrice;
-    net += lineNet;
-    vat += Math.round(lineNet * line.signedOffer.offer.vatRate);
-  }
-  return { net, vat, gross: net + vat };
-}
+/** Agent rationale, then the gateway's case-specific reason messages. */
+export const whyText = (order: UiOrder) => [order.rationale, ...order.decision.reasons.map((r) => r.message)].filter((t): t is string => !!t);
 
 type Tone = 'ok' | 'warn' | 'stop';
 
-const STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
+const STATUS: Record<OrderStatus | DecisionStatus, { label: string; tone: Tone }> = {
   auto_approved: { label: 'Auto-approved', tone: 'ok' },
   approved: { label: 'Approved', tone: 'ok' },
+  pending_approval: { label: 'Needs approval', tone: 'warn' },
   needs_approval: { label: 'Needs approval', tone: 'warn' },
   blocked: { label: 'Blocked', tone: 'stop' },
   rejected: { label: 'Rejected', tone: 'stop' },
@@ -48,7 +44,7 @@ export function ToneIcon({ tone }: { tone: Tone }) {
   );
 }
 
-export function StatusBadge({ status }: { status: OrderStatus }) {
+export function StatusBadge({ status }: { status: OrderStatus | DecisionStatus }) {
   const { label, tone } = STATUS[status];
   return (
     <span className={`badge tone-${tone}`}>
@@ -63,7 +59,7 @@ export function ReasonChips({ codes }: { codes: ReasonCode[] }) {
   return (
     <ul className="reasons" aria-label="Reason codes">
       {codes.map((code) => {
-        const reason = REASONS[code];
+        const reason = REASON_CODE_INFO[code];
         const tone = reason.severity === 'blocked' ? 'stop' : 'warn';
         return (
           <li key={code} className={`reason tone-${tone}`}>
@@ -71,7 +67,7 @@ export function ReasonChips({ codes }: { codes: ReasonCode[] }) {
             <div>
               <strong>{reason.title}</strong>
               <code>{code}</code>
-              <p>{reason.explanation}</p>
+              <p>{reason.description}</p>
             </div>
           </li>
         );

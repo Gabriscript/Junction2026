@@ -1,22 +1,8 @@
-import type { AuditEvent } from './contract';
+import { auditHashInput, GENESIS_HASH, type AuditEvent } from '@junction/shared';
 
-export const GENESIS_HASH = '0'.repeat(64);
-
-/** JSON with object keys sorted at every level, no whitespace, undefined omitted. */
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    const keys = Object.keys(obj).filter((k) => obj[k] !== undefined).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-/** hash = hex(SHA-256(prevHash + "\n" + canonicalJson(event without hash and prevHash))). */
+/** hash = hex(SHA-256(auditHashInput(event))): the rule defined in @junction/shared audit.ts. */
 export async function hashEvent(event: Omit<AuditEvent, 'hash'>): Promise<string> {
-  const { prevHash, ...body } = event;
-  const bytes = new TextEncoder().encode(`${prevHash}\n${canonicalJson(body)}`);
+  const bytes = new TextEncoder().encode(auditHashInput(event));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -31,18 +17,19 @@ export interface ChainResult {
 
 /**
  * Verifies events sorted by seq. Every event's own hash is recomputed. The link to the
- * previous event is checked when that event is in the list (seq - 1), or when seq is 1 (genesis).
+ * previous event is checked when that event is in the list (seq - 1), or when seq is 0 (genesis).
+ * Unlike shared `firstBrokenLink`, this tolerates gaps, because the buyer view is a filtered chain.
  */
-export async function verifyChain(events: AuditEvent[]): Promise<ChainResult> {
+export async function verifyChain(events: readonly AuditEvent[]): Promise<ChainResult> {
   let outsideLinks = 0;
   for (let i = 0; i < events.length; i++) {
-    const { hash, ...rest } = events[i]!;
-    if ((await hashEvent(rest)) !== hash) return { ok: false, brokenAt: rest.seq, outsideLinks };
+    const event = events[i]!;
+    if ((await hashEvent(event)) !== event.hash) return { ok: false, brokenAt: event.seq, outsideLinks };
     const prev = events[i - 1];
-    if (rest.seq === 1) {
-      if (rest.prevHash !== GENESIS_HASH) return { ok: false, brokenAt: rest.seq, outsideLinks };
-    } else if (prev && prev.seq === rest.seq - 1) {
-      if (rest.prevHash !== prev.hash) return { ok: false, brokenAt: rest.seq, outsideLinks };
+    if (event.seq === 0) {
+      if (event.prevHash !== GENESIS_HASH) return { ok: false, brokenAt: event.seq, outsideLinks };
+    } else if (prev && prev.seq === event.seq - 1) {
+      if (event.prevHash !== prev.hash) return { ok: false, brokenAt: event.seq, outsideLinks };
     } else {
       outsideLinks++;
     }

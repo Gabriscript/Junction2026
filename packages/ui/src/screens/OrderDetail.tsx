@@ -21,11 +21,9 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
           <div className="card-head">
             <div>
               <p>
-                <strong>{order.buyer}</strong>
+                <strong>{order.buyerName}</strong>
               </p>
-              <p className="muted">
-                {order.agentName} ({order.agentId})
-              </p>
+              <p className="muted">{order.agentName ? `${order.agentName} (${order.agentId})` : order.agentId}</p>
             </div>
             <StatusBadge status={order.status} />
           </div>
@@ -47,18 +45,19 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
               </div>
               <div>
                 <dt>Mandate</dt>
-                <dd>{order.mandateId ?? 'No valid mandate presented'}</dd>
+                <dd>{order.mandateId}</dd>
               </div>
               <div>
                 <dt>Received</dt>
                 <dd>{time(order.createdAt)}</dd>
               </div>
-              {order.review && (
+              {order.approval && (
                 <div>
                   <dt>Human review</dt>
                   <dd>
-                    {order.review.action === 'approved' ? 'Approved' : 'Rejected'} by {order.review.approver}, {time(order.review.at)}
-                    {order.review.reason && `. Reason: ${order.review.reason}`}
+                    {order.approval.outcome === 'approved' ? 'Approved' : 'Rejected'} by {order.approval.by.name ?? order.approval.by.id},{' '}
+                    {time(order.approval.at)}
+                    {order.approval.comment && `. Reason: ${order.approval.comment}`}
                   </dd>
                 </div>
               )}
@@ -67,37 +66,39 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
             <ReviewActions api={api} order={order} onDone={refresh} />
           </section>
 
-          <section aria-labelledby="trace-title">
-            <h2 id="trace-title">What the agent did</h2>
-            <ol className="trace">
-              {order.trace.map((step, i) => (
-                <li key={i}>
-                  <p>{step.text}</p>
-                  <p className="muted">
-                    {time(step.ts)}
-                    {step.tool && (
-                      <>
-                        , tool <code>{step.tool}</code>
-                      </>
-                    )}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </section>
+          {order.trace && order.trace.length > 0 && (
+            <section aria-labelledby="trace-title">
+              <h2 id="trace-title">What the agent did</h2>
+              <ol className="trace">
+                {order.trace.map((step, i) => (
+                  <li key={i}>
+                    <p>{step.text}</p>
+                    <p className="muted">
+                      {time(step.at)}
+                      {step.tool && (
+                        <>
+                          , tool <code>{step.tool}</code>
+                        </>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
 
           <section aria-labelledby="offers-title">
             <h2 id="offers-title">Signed offers used</h2>
             <ul className="rows">
-              {order.lines.map(({ signedOffer: { offer } }) => (
-                <li key={offer.offerId}>
+              {order.lines.map((line) => (
+                <li key={line.lineId}>
                   <p>
-                    <code>{offer.offerId}</code> {offer.productName}
+                    <code>{line.offerId}</code> {line.productName}
                   </p>
                   <p className="muted">
-                    Issued by {offer.issuer}, valid until {time(offer.validUntil)}, available {offer.availableDate}
-                    {offer.origin && `, origin ${offer.origin}`}
-                    {offer.labels.length > 0 && `, ${offer.labels.join(', ')}`}
+                    {line.offerVerified ? 'Signature verified' : 'Signature not verified'}, available{' '}
+                    {line.availableDate ?? 'not deliverable'}
+                    {line.substituteFor && `, substitute for ${line.substituteFor}`}
                   </p>
                 </li>
               ))}

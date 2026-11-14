@@ -1,13 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import type { GatewayApi } from '../api';
-import type { Order } from '../contract';
-import { ReasonChips, StatusBadge } from '../ui';
+import type { UiOrder } from '../contract';
+import { ReasonChips, StatusBadge, whyText } from '../ui';
 
 export function RequestForm({ api }: { api: GatewayApi }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [order, setOrder] = useState<Order>();
+  const [order, setOrder] = useState<UiOrder>();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -63,7 +63,9 @@ export function RequestForm({ api }: { api: GatewayApi }) {
               <StatusBadge status={order.status} />
             </div>
             <ReasonChips codes={order.decision.reasonCodes} />
-            <p>{order.decision.explanation}</p>
+            {whyText(order).map((text, i) => (
+              <p key={i}>{text}</p>
+            ))}
             <p>
               <a href={`#/orders/${order.orderId}`}>Open decision record for {order.orderId}</a>
             </p>

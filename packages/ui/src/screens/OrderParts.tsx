@@ -1,31 +1,35 @@
 // Building blocks shared by the approval queue and the order detail.
 import { useId, useState, type FormEvent } from 'react';
 import type { GatewayApi } from '../api';
-import type { Order } from '../contract';
-import { eur, orderTotals, ReasonChips } from '../ui';
+import { UNIT_CODE_NAMES, type Actor } from '@junction/shared';
+import type { UiOrder } from '../contract';
+import { eur, ReasonChips, vatPercent, whyText } from '../ui';
 
-export const APPROVER = 'Demo approver'; // shortcut: no sign-in in the prototype, add the real approver identity with auth
+// shortcut: no sign-in in the prototype, add the real approver identity with auth
+export const APPROVER: Actor = { type: 'human', id: 'user:demo.approver', name: 'Demo approver' };
 
-export function Cart({ order }: { order: Order }) {
-  const totals = orderTotals(order);
+export function Cart({ order }: { order: UiOrder }) {
+  const { totals } = order;
   return (
     <div className="cart">
       <ul className="lines" aria-label="Cart lines">
-        {order.lines.map(({ signedOffer: { offer }, quantity, packLabel }) => {
-          const net = quantity * offer.unitPrice;
+        {order.lines.map((line) => {
+          const unverified = order.decision.reasons.some((r) => r.code === 'UNVERIFIED_STOCK' && r.lineId === line.lineId);
+          const unitName = UNIT_CODE_NAMES[line.unit];
           return (
-            <li key={offer.offerId}>
+            <li key={line.lineId}>
               <div className="line-main">
-                <span className="line-name">{offer.productName}</span>
-                <span className="num">{eur(net)}</span>
+                <span className="line-name">{line.productName}</span>
+                <span className="num">{eur(line.totals.net)}</span>
               </div>
               <p className="muted">
-                {quantity} × {offer.unit} ({packLabel}) at {eur(offer.unitPrice)} each
+                {line.quantity} × {line.unit}
+                {unitName && ` (${unitName})`} at {eur(line.unitPrice)} each
               </p>
               <p className="muted">
-                VAT {(offer.vatRate * 100).toLocaleString('fi-FI')} %: {eur(Math.round(net * offer.vatRate))}
+                VAT {vatPercent(line.vatRate)}: {eur(line.totals.vat)}
                 {', '}
-                {offer.quantityVerified ? 'stock verified' : 'terminal stock, quantity not verified'}
+                {unverified ? 'terminal stock, quantity not verified' : 'stock verified'}
               </p>
             </li>
           );
@@ -51,13 +55,15 @@ export function Cart({ order }: { order: Order }) {
 
 const TIER_LABEL = { good: 'Good', better: 'Better', best: 'Best' } as const;
 
-export function DecisionSummary({ order }: { order: Order }) {
+export function DecisionSummary({ order }: { order: UiOrder }) {
   return (
     <>
       <ReasonChips codes={order.decision.reasonCodes} />
       <h4>Why</h4>
-      <p>{order.decision.explanation}</p>
-      {order.alternatives.length > 0 && (
+      {whyText(order).map((text, i) => (
+        <p key={i}>{text}</p>
+      ))}
+      {order.alternatives && order.alternatives.length > 0 && (
         <>
           <h4>Alternatives considered</h4>
           <ul className="alternatives">
@@ -82,14 +88,14 @@ export function DecisionSummary({ order }: { order: Order }) {
   );
 }
 
-export function ReviewActions({ api, order, onDone }: { api: GatewayApi; order: Order; onDone: () => void }) {
+export function ReviewActions({ api, order, onDone }: { api: GatewayApi; order: UiOrder; onDone: () => void }) {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const fieldId = useId();
 
-  if (order.status !== 'needs_approval') return null;
+  if (order.status !== 'pending_approval') return null;
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);

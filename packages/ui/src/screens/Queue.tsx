@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GatewayApi } from '../api';
-import { eur, orderTotals, StatusBadge, useLive } from '../ui';
+import { eur, StatusBadge, useLive } from '../ui';
 import { Cart, DecisionSummary, ReviewActions } from './OrderParts';
 
 export function Queue({ api }: { api: GatewayApi }) {
@@ -8,8 +8,8 @@ export function Queue({ api }: { api: GatewayApi }) {
   const [announcement, setAnnouncement] = useState('');
   const known = useRef<Set<string> | null>(null);
 
-  const pending = orders?.filter((o) => o.status === 'needs_approval') ?? [];
-  const others = orders?.filter((o) => o.status !== 'needs_approval').reverse() ?? [];
+  const pending = orders?.filter((o) => o.status === 'pending_approval') ?? [];
+  const others = orders?.filter((o) => o.status !== 'pending_approval').reverse() ?? [];
 
   // Announce orders that start waiting after the first load.
   useEffect(() => {
@@ -18,7 +18,7 @@ export function Queue({ api }: { api: GatewayApi }) {
     if (known.current) {
       const fresh = pending.filter((o) => !known.current!.has(o.orderId));
       if (fresh.length > 0) {
-        setAnnouncement(`New order needs approval: ${fresh.map((o) => `${o.orderId} from ${o.buyer}`).join(', ')}.`);
+        setAnnouncement(`New order needs approval: ${fresh.map((o) => `${o.orderId} from ${o.buyerName}`).join(', ')}.`);
       }
     }
     known.current = ids;
@@ -44,9 +44,9 @@ export function Queue({ api }: { api: GatewayApi }) {
           <article key={order.orderId} className="card" aria-labelledby={`title-${order.orderId}`}>
             <header className="card-head">
               <div>
-                <h3 id={`title-${order.orderId}`}>{order.buyer}</h3>
+                <h3 id={`title-${order.orderId}`}>{order.buyerName}</h3>
                 <p className="muted">
-                  {order.agentName} ({order.agentId}), order {order.orderId}
+                  {order.agentName ? `${order.agentName} (${order.agentId})` : order.agentId}, order {order.orderId}
                 </p>
               </div>
               <StatusBadge status={order.status} />
@@ -70,9 +70,9 @@ export function Queue({ api }: { api: GatewayApi }) {
             <li key={order.orderId}>
               <a className="row-link" href={`#/orders/${order.orderId}`}>
                 <span>
-                  <strong>{order.buyer}</strong>
+                  <strong>{order.buyerName}</strong>
                   <span className="muted">
-                    {order.orderId}, {eur(orderTotals(order).gross)} incl. VAT
+                    {order.orderId}, {eur(order.totals.gross)} incl. VAT
                   </span>
                 </span>
                 <StatusBadge status={order.status} />

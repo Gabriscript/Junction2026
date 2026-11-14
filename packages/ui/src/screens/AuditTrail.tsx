@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MockGatewayApi, type GatewayApi } from '../api';
-import type { AuditEvent, AuditScope } from '../contract';
+import type { Actor, AuditEvent } from '@junction/shared';
+import type { AuditScope } from '../contract';
 import { verifyChain, type ChainResult } from '../hash';
 import { shortHash, time, ToneIcon, useLive } from '../ui';
 
@@ -9,7 +10,8 @@ const TABS: { scope: AuditScope; label: string; intro: string }[] = [
   { scope: 'aimo', label: 'Aimo view', intro: 'Which agents ordered what, under which mandate.' },
 ];
 
-const actorLabel = (actor: string) => (actor === 'human' ? 'Human' : actor === 'aimo' ? 'Aimo gateway' : `Agent ${actor}`);
+const actorLabel = (actor: Actor) =>
+  actor.type === 'human' ? 'Human' : actor.type === 'gateway' ? 'Aimo gateway' : `Agent ${actor.id}`;
 
 function ChainStatus({ events }: { events: AuditEvent[] }) {
   const [result, setResult] = useState<ChainResult>();
@@ -43,11 +45,11 @@ function ChainStatus({ events }: { events: AuditEvent[] }) {
 function AgentTable({ events }: { events: AuditEvent[] }) {
   const agents = new Map<string, { mandate: string; orders: number; blocked: number }>();
   for (const e of events) {
-    if (e.kind !== 'decision') continue;
-    const id = String(e.details.agentId ?? e.actor);
-    const row = agents.get(id) ?? { mandate: String(e.details.mandateId ?? 'No valid mandate'), orders: 0, blocked: 0 };
+    if (e.type !== 'order_decided') continue;
+    const id = e.agentId ?? e.actor.id;
+    const row = agents.get(id) ?? { mandate: String(e.data.mandateId ?? 'No valid mandate'), orders: 0, blocked: 0 };
     row.orders++;
-    if (e.details.status === 'blocked') row.blocked++;
+    if (e.data.status === 'blocked') row.blocked++;
     agents.set(id, row);
   }
   return (
@@ -116,16 +118,16 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
               {[...events].reverse().map((e) => (
                 <li key={e.seq}>
                   <p className="muted">
-                    #{e.seq}, {time(e.ts)}, {actorLabel(e.actor)}
+                    #{e.seq}, {time(e.at)}, {actorLabel(e.actor)}
                   </p>
                   <p>{e.summary}</p>
                   {scope === 'aimo' && (
-                    <p className="muted">Mandate: {String(e.details.mandateId ?? 'no valid mandate')}</p>
+                    <p className="muted">Mandate: {String(e.data.mandateId ?? 'none')}</p>
                   )}
                   <p className="hashes">
                     <span title={e.hash}>hash {shortHash(e.hash)}</span>
                     <span title={e.prevHash}>
-                      follows {e.seq === 1 ? 'genesis' : `#${e.seq - 1}`} {shortHash(e.prevHash)}
+                      follows {e.seq === 0 ? 'genesis' : `#${e.seq - 1}`} {shortHash(e.prevHash)}
                     </span>
                     {e.orderId && <a href={`#/orders/${e.orderId}`}>{e.orderId}</a>}
                   </p>
