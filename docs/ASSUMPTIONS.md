@@ -32,3 +32,9 @@ Everything the prototype does that the Valio Aimo mock API / dataset does **not*
 23. **Approve/reject are human-only**: REST only (approver `type` must be `human`), never registered as MCP tools; MCP calls to them return an error.
 24. **Audit chain** is a single sequence in SQLite (sha256 over the shared `auditHashInput`). Buyer view = events tagged `buyer` for their `customerRef`; Aimo view = everything. The gateway operator could rewrite the whole chain consistently — anchoring the head hash externally is a next step.
 25. **MCP over HTTP is stateless** (fresh server per request, JSON responses); stdio transport is available for Claude Desktop. Time is the gateway clock (UTC ISO strings in offers/orders; Aimo `+0200` offsets normalised to `+02:00`).
+
+## Recipe step (agent, `packages/agent/src/recipe/`)
+- Portion sizes come from an LLM or a fixed demo table and are clamped to rough professional-kitchen bounds per ingredient kind (e.g. pasta 60–150 g per serving).
+- Ready-made components (e.g. pesto) are assumed unless the chef says otherwise.
+- Missing servings → 1 serving; missing date → next available delivery. Both are shown to the chef as assumptions.
+- No pantry/stock awareness and no recipe adaptation to allergens; allergen safety is enforced by the mandate and the gateway policy.
