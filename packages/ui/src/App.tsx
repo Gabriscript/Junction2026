@@ -76,7 +76,7 @@ export function App({ api }: { api: GatewayApi }) {
   };
   const main = useRef<HTMLElement>(null);
   const tourButton = useRef<HTMLButtonElement>(null);
-  const [touring, setTouring] = useState(false);
+  const [touring, setTouring] = useState(() => new URLSearchParams(window.location.search).get('demo') === 'tour'); // ?demo=tour: opened by the live build's button
   const [tourAt, setTourAt] = useState<TourStep>();
   const first = useRef(true);
   const { data: orders } = useLive(api, () => api.listOrders(), 'nav-orders');
@@ -118,9 +118,12 @@ export function App({ api }: { api: GatewayApi }) {
     if (step.view) keepView(step.view);
     window.location.hash = `#/${step.route}`;
   };
+  // The tour is scripted on the mock scenes: the live build's button reloads into the mock with the tour already running.
+  const startTour = () => (demo ? setTouring(true) : window.location.assign(`${window.location.pathname}?demo=tour`));
   const endTour = () => {
     setTouring(false);
     setTourAt(undefined);
+    if (window.location.search.includes('demo=tour')) window.history.replaceState(null, '', `${window.location.pathname}?demo${window.location.hash}`); // a reload no longer restarts it
     tourButton.current?.focus();
   };
 
@@ -204,12 +207,10 @@ export function App({ api }: { api: GatewayApi }) {
                 <span className="view-long">Valio</span> Aimo
               </button>
             </div>
-            {demo && (
-              <button ref={tourButton} type="button" className="btn tour-btn" onClick={() => setTouring(true)}>
-                <Icon name="play" />
-                <span className="tour-label">Demo tour</span>
-              </button>
-            )}
+            <button ref={tourButton} type="button" className="btn tour-btn" onClick={startTour}>
+              <Icon name="play" />
+              <span className="tour-label">Demo tour</span>
+            </button>
             <p className="who">
               <span className="avatar" aria-hidden="true">
                 {initials(who)}
