@@ -6,13 +6,15 @@
       "framework": "vite"
     },
     "gateway": {
-      "root": "packages/gateway/",
+      "root": "deploy/gateway/",
       "framework": "fastify",
-      "entrypoint": "src/server.ts"
+      "buildCommand": "npm run vercel-build",
+      "entrypoint": "index.cjs"
     },
     "assistant": {
-      "root": "packages/agent/",
-      "entrypoint": "src/assistant/server.ts",
+      "root": "deploy/assistant/",
+      "buildCommand": "npm run vercel-build",
+      "entrypoint": "index.cjs",
       "bindings": [
         { "type": "service", "service": "gateway", "format": "url", "env": "GATEWAY_URL" }
       ]

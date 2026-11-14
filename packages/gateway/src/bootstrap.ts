@@ -3,11 +3,12 @@
  * signing key from .env, Aimo client from .env.
  */
 import { existsSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { AimoClient } from './aimo/client.js';
 import { AuditStore } from './audit/store.js';
 import { openCatalogueDb, SqliteCatalogue } from './catalogue/store.js';
-import { CATALOGUE_DB_PATH, ConfigError, DATA_DIR, GATEWAY_DB_PATH, gatewayConfig, type GatewayConfig } from './config.js';
+import { CATALOGUE_DB_PATH, ConfigError, GATEWAY_DB_PATH, gatewayConfig, type GatewayConfig } from './config.js';
 import { OrderStore } from './orders/store.js';
 import { GatewayService } from './service.js';
 import { loadSigningKey, type SigningKey } from './trust/keys.js';
@@ -25,7 +26,8 @@ export async function createGateway(overrides: Partial<GatewayConfig> = {}): Pro
   if (!existsSync(CATALOGUE_DB_PATH)) {
     throw new ConfigError(`Catalogue database not found at ${CATALOGUE_DB_PATH}. Run \`npm run load-catalogue\` first.`);
   }
-  mkdirSync(DATA_DIR, { recursive: true });
+  // only the writable DB needs a directory (on Vercel /tmp; the repo data/ dir is read-only there)
+  mkdirSync(dirname(GATEWAY_DB_PATH), { recursive: true });
   const catalogueDb = openCatalogueDb(CATALOGUE_DB_PATH, { readOnly: true });
   const gatewayDb = new DatabaseSync(GATEWAY_DB_PATH);
   gatewayDb.exec('PRAGMA journal_mode = WAL');
