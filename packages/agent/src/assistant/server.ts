@@ -20,7 +20,7 @@ import { SubstitutionPolicySchema, type Mandate, type Order } from '@junction/sh
 import { hotelMandate } from '@junction/shared/fixtures';
 import { runAgent, type AgentResult } from '../agent.js';
 import { HttpGateway } from '../http-client.js';
-import { addDays, createProvider, todayIso } from '../llm.js';
+import { addDays, createProvider, GEMINI_DEFAULT_MODEL, todayIso } from '../llm.js';
 import { planMenu, RecipeError, type MenuLine, type MenuPlan } from '../recipe/index.js';
 
 // repo-root .env (AIMO keys, ANTHROPIC_API_KEY for the scan): Node's built-in loader, like the gateway
@@ -197,18 +197,43 @@ async function planAndOrder(text: string, context: { neededBy?: string | null } 
 
 // ---------------------------------------------------------------- scan: photo of a handwritten note → text
 
-const SCAN_MODEL = process.env.SCAN_MODEL ?? 'claude-haiku-5-5';
+const SCAN_MODEL = process.env.SCAN_MODEL ?? (process.env.GEMINI_API_KEY ? GEMINI_DEFAULT_MODEL : 'claude-haiku-5-5');
 const SCAN_PROMPT = `This is a photo or PDF of a restaurant order, menu or reservation note (often handwritten).
 Transcribe the text exactly as written, one line per line of the note. Keep the original language and spelling.
 Do not add, translate, correct or explain anything. If there is no readable text, answer with an empty response.`;
 
 async function scanImage(body: unknown): Promise<string> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new HttpError(503, 'Scan needs ANTHROPIC_API_KEY in the .env file');
+  const apiKey = process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new HttpError(503, 'Scan needs GEMINI_API_KEY in the .env file');
   const { image, mediaType } = (body ?? {}) as { image?: unknown; mediaType?: unknown };
   const type = String(mediaType ?? '');
   if (typeof image !== 'string' || !image || !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(type)) {
     throw new HttpError(400, 'image (base64) and mediaType (jpeg, png, webp or pdf) are required');
   }
+
+  if (process.env.GEMINI_API_KEY) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${SCAN_MODEL}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      signal: AbortSignal.timeout(45_000),
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inlineData: { mimeType: type, data: image } },
+              { text: SCAN_PROMPT },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) throw new HttpError(502, `Gemini scan failed with HTTP ${res.status}`);
+    const data = (await res.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    return (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
+  }
+
   const source =
     type === 'application/pdf'
       ? ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: image } } as const)
@@ -330,7 +355,12 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/events') return await relayEvents(req, res);
     if (req.method === 'GET' && url.pathname === '/api/health')
-      return send(res, 200, { status: 'ok', gateway: GATEWAY, mandate: bistroMandate.mandateId, scan: Boolean(process.env.ANTHROPIC_API_KEY) });
+      return send(res, 200, {
+        status: 'ok',
+        gateway: GATEWAY,
+        mandate: bistroMandate.mandateId,
+        scan: Boolean(process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY),
+      });
     send(res, 404, { error: 'not found' });
   } catch (error) {
     if (res.headersSent) return res.end();

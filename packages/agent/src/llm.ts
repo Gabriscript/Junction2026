@@ -181,6 +181,38 @@ const noneProvider: LLMProvider = {
   parseNeed: async (text, now) => ruleParseNeed(text, now),
 };
 
+/** Answers in ~2 s; `gemini-flash-latest` timed out (60 s, no reply) when tested on 2026-11-14. Override with GEMINI_MODEL. */
+export const GEMINI_DEFAULT_MODEL = 'gemini-flash-lite-latest';
+
+function geminiProvider(apiKey: string, model: string, fetchImpl: typeof fetch): LLMProvider {
+  return {
+    name: 'gemini',
+    async parseNeed(text, now) {
+      const response = await fetchImpl(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, // key in a header, never in the URL (URLs end up in logs)
+          signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text }] }],
+            systemInstruction: { parts: [{ text: needPrompt(now) }] },
+            generationConfig: {
+              responseMimeType: 'application/json',
+            },
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
+      const body = (await response.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const reply = body.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      return jsonFromReply(reply);
+    },
+  };
+}
+
 function anthropicProvider(apiKey: string, model: string, fetchImpl: typeof fetch): LLMProvider {
   const client = new Anthropic({ apiKey, fetch: fetchImpl, timeout: LLM_TIMEOUT_MS, maxRetries: 1 });
   return {
@@ -228,18 +260,20 @@ function required(env: Env, name: string): string {
   return value;
 }
 
-/** Selects the provider from LLM_PROVIDER = anthropic | openrouter | none (default none). */
+/** Selects the provider from LLM_PROVIDER = gemini | anthropic | openrouter | none (defaults to gemini if GEMINI_API_KEY is present, else none). */
 export function createProvider(env: Env = process.env, fetchImpl: typeof fetch = fetch): LLMProvider {
-  const provider = env.LLM_PROVIDER || 'none';
+  const provider = env.LLM_PROVIDER || (env.GEMINI_API_KEY ? 'gemini' : env.ANTHROPIC_API_KEY ? 'anthropic' : 'none');
   switch (provider) {
     case 'none':
       return noneProvider;
+    case 'gemini':
+      return geminiProvider(required(env, 'GEMINI_API_KEY'), env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL, fetchImpl);
     case 'anthropic':
       return anthropicProvider(required(env, 'ANTHROPIC_API_KEY'), env.ANTHROPIC_MODEL || 'claude-haiku-5-5', fetchImpl);
     case 'openrouter':
       return openRouterProvider(required(env, 'OPENROUTER_API_KEY'), required(env, 'OPENROUTER_MODEL'), fetchImpl);
     default:
-      throw new Error(`Unknown LLM_PROVIDER "${provider}" (expected anthropic | openrouter | none)`);
+      throw new Error(`Unknown LLM_PROVIDER "${provider}" (expected gemini | anthropic | openrouter | none)`);
   }
 }
 

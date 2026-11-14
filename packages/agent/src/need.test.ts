@@ -158,8 +158,38 @@ describe('createProvider', () => {
   it('defaults to none and rejects unknown providers and missing keys', () => {
     expect(createProvider({}).name).toBe('none');
     expect(() => createProvider({ LLM_PROVIDER: 'gpt' })).toThrow(/LLM_PROVIDER/);
+    expect(() => createProvider({ LLM_PROVIDER: 'gemini' })).toThrow(/GEMINI_API_KEY/);
     expect(() => createProvider({ LLM_PROVIDER: 'anthropic' })).toThrow(/ANTHROPIC_API_KEY/);
     expect(() => createProvider({ LLM_PROVIDER: 'openrouter' })).toThrow(/OPENROUTER_API_KEY/);
+  });
+
+  it('gemini: auto-selects when GEMINI_API_KEY is present without LLM_PROVIDER', () => {
+    const llm = createProvider({ GEMINI_API_KEY: 'test-key' });
+    expect(llm.name).toBe('gemini');
+  });
+
+  it('gemini: sends model and key, parses JSON out of the reply', async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const fetchImpl = async (url: any, init: any) => {
+      calls.push({ url: String(url), init });
+      return jsonResponse({
+        candidates: [{ content: { parts: [{ text: JSON.stringify(validNeed) }] } }],
+      });
+    };
+    const llm = createProvider(
+      { LLM_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-key', GEMINI_MODEL: 'gemini-flash-latest' },
+      fetchImpl as typeof fetch,
+    );
+    const result = await extractNeed(BUTTER, llm, NOW);
+    expect(result).toMatchObject({ provider: 'gemini', usedFallback: false, need: validNeed });
+    const call = calls[0]!;
+    expect(call.url).toContain('generativelanguage.googleapis.com');
+    expect(call.url).not.toContain('test-key'); // the key travels in a header, never in the URL
+    expect((call.init.headers as Record<string, string>)['x-goog-api-key']).toBe('test-key');
+    expect(call.url).toContain('gemini-flash-latest');
+    const body = JSON.parse(String(call.init.body));
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    expect(body.contents[0].parts[0].text).toBe(BUTTER);
   });
 
   it('openrouter: sends model and key, parses JSON out of the reply', async () => {

@@ -31,15 +31,15 @@ Not building: chatbot as product, price negotiation, delivery-failure handling, 
 | Robustness (15 %) | partial availability, substitutions, **delivery constraints** | split across SKUs/packs, good-better-best, Terminal (unverified) stock, cut-off passed, sales block, available date later than needed |
 | Openness & path to production (15 %) | open documented standards, **visible assumptions**, justified tech choices, credible next steps | MCP + OpenAPI + JWS/VC + did:web, SPEC.md, ASSUMPTIONS.md, ADR-style choices in SPEC, roadmap slide |
 
-## 4. LLM usage (Claude credits: $20 per participant)
+## 4. LLM usage (Gemini API / Google DeepMind challenge track)
 - **Deterministic core in code** (no LLM): search, unit/pack math, ranking, policy, signing, audit → precise, repeatable, cheap.
-- **LLM only for:** free text → structured need, choosing between ranked finalists, writing the human-readable explanation.
-- `LLM_PROVIDER = anthropic | openrouter | none` (one small `LLMProvider` interface)
-  - dev: `openrouter` (free models) or `none`
-  - demo: `anthropic` — `claude-haiku-5-5` for parsing, `claude-sonnet-5-5` for decisions/explanations (`claude-opus-5-5` only if needed)
-  - fallback: `none` + recorded runs
-- Each dev uses their own key in local `.env`; one key reserved for the demo with a spend limit. Never commit keys.
-- **Second agent for the openness scene:** Claude Desktop / Claude Code connected to our MCP server.
+- **LLM only for:** free text → structured need, recipe ingredient suggestion, multimodal document/note scan, and human-readable explanations.
+- `LLM_PROVIDER = gemini | anthropic | openrouter | none` (one small `LLMProvider` interface)
+  - primary / demo: `gemini` (`GEMINI_API_KEY`, using `gemini-flash-lite-latest`) — powers note scan, recipe suggestions, and need extraction for the Google DeepMind track
+  - alternative: `anthropic` or `openrouter`
+  - fallback: `none` (deterministic rule-based parser + fixed recipe table, works 100% offline)
+- Each dev uses their own key in local `.env`. Never commit keys.
+- **Second agent for the openness scene:** External agent / Claude Desktop connected to our MCP server.
 
 ## 5. Repo layout and ownership (proposed)
 TypeScript monorepo (npm workspaces), Node 20+.
