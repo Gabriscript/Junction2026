@@ -3,7 +3,7 @@ import { useId, useState, type FormEvent } from 'react';
 import type { GatewayApi } from '../api';
 import { UNIT_CODE_NAMES, type Actor } from '@junction/shared';
 import type { UiOrder } from '../contract';
-import { eur, ReasonChips, whyText } from '../ui';
+import { eur, ReasonChips, WhyText } from '../ui';
 import { ProductFacts, ProductPhoto } from './Compact';
 
 // shortcut: no sign-in in the prototype, add the real approver identity with auth
@@ -59,13 +59,9 @@ export function DecisionSummary({ order, withAlternatives = true }: { order: UiO
   return (
     <>
       <ReasonChips codes={order.decision.reasonCodes} />
-      <details className="more" open={order.status === 'pending_approval'}>
+      <details className="more" open={order.status === 'pending_approval'} data-tour="why">
         <summary>Why Mikko chose this</summary>
-        {whyText(order).map((text, i) => (
-          <p key={i} className="why">
-            {text}
-          </p>
-        ))}
+        <WhyText order={order} className="why" />
       </details>
       {withAlternatives && <Alternatives order={order} />}
     </>

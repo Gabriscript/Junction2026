@@ -3,10 +3,9 @@ import { AIMO_PRODUCTS } from '../aimoProducts';
 import type { GatewayApi } from '../api';
 import { history, isoWeek, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
 import { DEMO_UNIT_PRICES, FALLBACK_UNIT_PRICE } from '../mockData';
-import { eur, Icon, StatusBadge, time, useLive } from '../ui';
+import { AURORA, eur, Icon, StatusBadge, time, useLive } from '../ui';
 import { Autopilot } from './Autopilot';
 
-const AURORA = '300'; // the signed-in kitchen's customerRef in the demo data
 const pars = [...parLevels(history)].sort(([, a], [, b]) => a.every - b.every || b.median - a.median);
 const qty = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 const spendOf = (o: { item: string; quantity: number }) => Math.round(o.quantity * (DEMO_UNIT_PRICES[o.item] ?? FALLBACK_UNIT_PRICE) * 100) / 100;
@@ -88,7 +87,8 @@ function WeeklySpend() {
 
 export function Orders({ api }: { api: GatewayApi }) {
   const { data: orders, error } = useLive(api, () => api.listOrders(), 'my-orders');
-  const mine = (orders ?? []).filter((o) => o.customerRef === AURORA).reverse();
+  // orders waiting for the chef's OK live on Approvals
+  const mine = (orders ?? []).filter((o) => o.customerRef === AURORA && o.status !== 'pending_approval').reverse();
 
   return (
     <>
@@ -110,7 +110,7 @@ export function Orders({ api }: { api: GatewayApi }) {
         {orders && mine.length === 0 && <p className="empty">No orders yet.</p>}
         {mine.length > 0 && (
           <div className="table-wrap">
-            <table className="orders">
+            <table className="orders recent">
               <thead className="orders-head">
                 <tr>
                   <th scope="col">Order</th>

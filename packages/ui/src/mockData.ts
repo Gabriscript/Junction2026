@@ -107,13 +107,14 @@ const hospitalLines = [
   line({ lineId: 'ln-1', offerId: 'off-2002', ...tub5, quantity: 12 }),
   line({ lineId: 'ln-2', offerId: 'off-2003', ...tub25, quantity: 16 }),
 ];
+// The pending gelato order, now Hotel Aurora's, so the demo kitchen has something to approve (name kept: api.ts imports it).
 export const hospitalOrder: UiOrder = {
   orderId: 'ord-1002',
-  agentId: 'agent:hospital-kitchen',
-  agentName: 'Hospital kitchen agent',
-  mandateId: 'mandate-hospital-01',
-  customerRef: '200',
-  buyerName: 'City Hospital kitchen (demo)',
+  agentId: 'agent:aurora-kitchen',
+  agentName: 'Hotel Aurora kitchen agent',
+  mandateId: 'mandate-aurora-01',
+  customerRef: '300',
+  buyerName: 'Hotel Aurora kitchen (demo)',
   status: 'pending_approval',
   lines: hospitalLines,
   totals: sumTotals(hospitalLines),
@@ -156,9 +157,55 @@ export const hospitalOrder: UiOrder = {
     { at: '2026-11-13T18:20:42Z', tool: 'search_products', text: 'Searched for lactose-free ice cream free from nuts. Products with unknown allergen data were left out.' },
     { at: '2026-11-13T18:20:43Z', tool: 'get_offers', text: 'Live stock: 12 tubs of 5 L (60 L) verified. The 2,5 L tubs ship from a terminal, quantity not verified.' },
     { at: '2026-11-13T18:20:44Z', text: 'Ranked three ways to cover the missing 40 L: good, better, best.' },
-    { at: '2026-11-13T18:20:45Z', tool: 'propose_order', text: 'Proposed the "best" option under mandate-hospital-01. Gateway decision: needs approval.' },
+    { at: '2026-11-13T18:20:45Z', tool: 'propose_order', text: 'Proposed the "best" option under mandate-aurora-01. Gateway decision: needs approval.' },
   ],
 };
+
+const euro = new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' }).format;
+
+/**
+ * The demo tour's one order: "<n> kg tomatoes, 100 L vanilla ice cream". The 5 L tub is short (12 in stock, the same
+ * synthetic stock as the pending gelato order), so 2,5 L tubs of the same ice cream fill the gap as a substitute line.
+ * shortcut: the ice cream is fixed at 100 L (the tour's request); only the tomato kilos are read from the text.
+ */
+export function tourOrder(orderId: string, requestText: string, at: string): UiOrder {
+  const kg = Number(/(\d[\d ]*)\s*kg\s+tomato/i.exec(requestText)?.[1]?.replace(/\s/g, '') ?? 30);
+  const tomato = AIMO_PRODUCTS.tomatoes!;
+  const litres = 100;
+  const bigInStock = 12;
+  const bigWanted = litres / 5;
+  const smallTubs = (litres - bigInStock * 5) / 2.5;
+  const lines = [
+    line({ lineId: 'ln-1', offerId: 'off-2101', productId: tomato.productId, productName: tomato.name, unit: tomato.salesUnit, unitPrice: tomato.price, quantity: kg }),
+    line({ lineId: 'ln-2', offerId: 'off-2102', ...tub5, quantity: bigInStock }),
+    line({ lineId: 'ln-3', offerId: 'off-2103', ...tub25, quantity: smallTubs, substituteFor: tub5.productId }),
+  ];
+  const smallGross = lines[2]!.totals.gross;
+  const bigGross = totalsFromNet((bigWanted - bigInStock) * tub5.unitPrice, 13.5).gross;
+  const extra = Math.round((smallGross - bigGross) * 100) / 100;
+  return {
+    ...auroraOrder,
+    orderId,
+    status: 'auto_approved',
+    lines,
+    totals: sumTotals(lines),
+    requestText,
+    rationale:
+      `You asked for ${kg} kg tomatoes and ${litres} L vanilla ice cream.\n` +
+      `Only ${bigInStock} of ${bigWanted} big tubs; ${smallTubs} small tubs fill the gap, +${euro(extra)}. ` +
+      `You need ${litres} L, which is ${bigWanted} tubs of 5 L, but only ${bigInStock} are in stock (${bigInStock * 5} L). ` +
+      `The missing ${litres - bigInStock * 5} L come as ${smallTubs} tubs of 2,5 L of the same lactose-free vanilla: ` +
+      `${euro(smallGross)} instead of ${euro(bigGross)} for ${bigWanted - bigInStock} more big tubs, incl. VAT.`,
+    decision: { status: 'auto_approved', reasonCodes: [], reasons: [], decidedAt: at, policyVersion: 'policy-0.1' },
+    createdAt: at,
+    updatedAt: at,
+    trace: [
+      { at, text: `Read the request: ${kg} kg tomatoes, ${litres} L vanilla ice cream.` },
+      { at, tool: 'get_offers', text: `Verified 3 signed offers. Only ${bigInStock} of ${bigWanted} tubs of 5 L are available.` },
+      { at, tool: 'propose_order', text: 'The chef accepted the substitute. Proposed the order under mandate-aurora-01. Gateway decision: auto-approved.' },
+    ],
+  };
+}
 
 // shortcut: shared Order requires a mandate and customer, so the unregistered agent replays an
 // unknown mandate id; its audit events are Aimo-only.

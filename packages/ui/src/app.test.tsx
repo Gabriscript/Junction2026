@@ -24,7 +24,8 @@ test('approving a pending order updates its status and appends an audit event, n
   fireEvent.click(await screen.findByRole('button', { name: 'Approve order ord-1002' }));
 
   await screen.findByText('Nothing is waiting for approval.');
-  const row = screen.getByRole('link', { name: /City Hospital kitchen/ }).closest('tr')!;
+  // ord-1002 is Hotel Aurora's now (the Kitchen's own), so the row is found by its order id, not the buyer
+  const row = screen.getByRole('link', { name: 'Why order ord-1002 is approved' }).closest('tr')!;
   expect(within(row).getByText('Approved')).toBeTruthy();
 
   const events = await api.listAuditEvents('aimo');
@@ -69,10 +70,11 @@ test('tampering with one audit event makes the chain indicator show broken', asy
   render(<App api={api} />);
   expect(await screen.findByText('Chain verified ✓')).toBeTruthy();
 
-  await act(() => api.tamper(3));
+  // the Kitchen audit shows only Hotel Aurora's events: #3 is Harbour Hotel's, so tamper with #2 (Aurora)
+  await act(() => api.tamper(2));
 
   expect(await screen.findByText('Chain broken ✗')).toBeTruthy();
-  expect(screen.getByText(/Event #3 does not match its hash/)).toBeTruthy();
+  expect(screen.getByText(/Event #2 does not match its hash/)).toBeTruthy();
 });
 
 test('a new pending order from a request is announced and shown live', async () => {
@@ -87,6 +89,13 @@ test('a new pending order from a request is announced and shown live', async () 
 
   expect(await screen.findByRole('button', { name: 'Approve order ord-1004' })).toBeTruthy();
   expect(await screen.findByText(/New order needs approval: ord-1004/)).toBeTruthy();
+});
+
+test('mock requests from the Kitchen become Hotel Aurora orders, ice cream included', async () => {
+  const api = new MockGatewayApi();
+  for (const text of ['50 L gelato for Friday', '20 kg rice']) {
+    expect(await api.submitRequest(text)).toMatchObject({ customerRef: '300', buyerName: 'Hotel Aurora kitchen (demo)', agentId: 'agent:aurora-kitchen', mandateId: 'mandate-aurora-01' });
+  }
 });
 
 test('money is decimal EUR shown as Finnish euros, VAT rate is a percent', async () => {
@@ -181,6 +190,8 @@ test('orders dashboard: the 2026 heatmap shows the total first, products on requ
   expect(within(heat).queryByText('tomatoes')).toBeNull();
   expect(screen.queryByText('Your usual week')).toBeNull();
   expect(await screen.findByRole('link', { name: /300 L lactose-free vanilla ice cream/ })).toBeTruthy();
+  // the pending order lives on Approvals, not in Recent orders
+  expect(screen.queryByRole('link', { name: /100 L lactose-free vanilla ice cream for Monday/ })).toBeNull();
 });
 
 test('a substitute line names what it replaces; the reason is in the Why fold', async () => {
@@ -266,4 +277,28 @@ test("a substitute line in the compact card carries a flag with Mikko's reason",
   const tip = document.getElementById(flag.getAttribute('aria-describedby')!)!;
   expect(tip.getAttribute('role')).toBe('tooltip');
   expect(tip.textContent).toMatch(/^SubstituteOnly 40 of the 60 tubs of 5 L/);
+});
+
+test("the view switch hides other buyers' orders in Kitchen and shows them all in Valio Aimo", async () => {
+  localStorage.removeItem('view');
+  window.location.hash = '#/queue';
+  render(<App api={new MockGatewayApi()} />);
+  await screen.findByRole('button', { name: 'Approve order ord-1002' });
+  expect(screen.queryByText(/Harbour Hotel/)).toBeNull();
+  expect(screen.queryByText('Not verified')).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Valio Aimo' }));
+  expect(await screen.findByRole('heading', { name: 'All orders' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: /Harbour Hotel/ })).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Why order ord-1003 is blocked' })).toBeTruthy();
+  // Valio Aimo waits on the buyer; "Needs your OK" is the chef's wording
+  expect(screen.getByRole('link', { name: 'Why order ord-1002 is pending approval' }).textContent).toBe('Awaiting buyer');
+  expect(screen.getByRole('button', { name: 'Valio Aimo' }).getAttribute('aria-pressed')).toBe('true');
+  expect(localStorage.getItem('view')).toBe('aimo');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Kitchen' }));
+  expect((await screen.findAllByRole('link', { name: /Approvals/ })).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('link', { name: /All orders/ })).toBeNull();
+  expect(screen.queryByText(/Harbour Hotel/)).toBeNull();
+  localStorage.removeItem('view');
 });

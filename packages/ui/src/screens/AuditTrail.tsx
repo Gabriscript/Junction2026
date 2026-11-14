@@ -3,12 +3,7 @@ import { MockGatewayApi, type GatewayApi } from '../api';
 import { REASON_CODE_INFO, type Actor, type AuditEvent } from '@junction/shared';
 import type { AuditScope } from '../contract';
 import { verifyChain, type ChainResult } from '../hash';
-import { eur, Icon, shortHash, ToneIcon, useLive } from '../ui';
-
-const TABS: { scope: AuditScope; label: string }[] = [
-  { scope: 'buyer', label: 'Buyer' },
-  { scope: 'aimo', label: 'Aimo' },
-];
+import { AURORA, eur, Icon, shortHash, ToneIcon, useLive } from '../ui';
 
 const actorLabel = (actor: Actor, scope: AuditScope) =>
   actor.type === 'human' ? (actor.name ?? 'Chef') : actor.type === 'gateway' ? 'Valio Aimo gateway' : scope === 'buyer' ? 'Mikko' : (actor.name ?? actor.id);
@@ -169,7 +164,7 @@ function ChainStatus({ events, children }: { events: AuditEvent[]; children?: Re
   if (!result) return <p className="chain" role="status">Checking the hash chain...</p>;
   if (result.ok)
     return (
-      <div className="chain tone-ok">
+      <div className="chain tone-ok" data-tour="chain">
         <details className="more chain-fold">
           <summary>
             <strong role="status">Chain verified ✓</strong>
@@ -183,7 +178,7 @@ function ChainStatus({ events, children }: { events: AuditEvent[]; children?: Re
       </div>
     );
   return (
-    <div className="chain tone-stop" role="status">
+    <div className="chain tone-stop" role="status" data-tour="chain">
       <ToneIcon tone="stop" />
       <div>
         <strong>Chain broken ✗</strong>
@@ -230,34 +225,19 @@ function AgentTable({ events }: { events: AuditEvent[] }) {
   );
 }
 
-export function AuditTrail({ api }: { api: GatewayApi }) {
-  const [scope, setScope] = useState<AuditScope>('buyer');
-  const { data: events, error } = useLive(api, () => api.listAuditEvents(scope), scope);
+/** `scope` comes from the view: 'buyer' is the Kitchen's own events, 'aimo' every event. */
+export function AuditTrail({ api, scope }: { api: GatewayApi; scope: AuditScope }) {
+  // shortcut: the mock's buyer scope holds every buyer's events, so the Kitchen keeps its own here; the real gateway filters by the signed-in buyer.
+  const load = async () => (await api.listAuditEvents(scope)).filter((e) => scope === 'aimo' || !e.customerRef || e.customerRef === AURORA);
+  const { data: events, error } = useLive(api, load, scope);
 
   return (
     <>
-      <header className="page-head page-head-row">
-        <div>
-          <h1>Audit trail</h1>
-        </div>
-        <div className="tabs" role="tablist" aria-label="Audit views">
-        {TABS.map((t) => (
-          <button
-            key={t.scope}
-            type="button"
-            role="tab"
-            id={`tab-${t.scope}`}
-            aria-selected={t.scope === scope}
-            aria-controls="audit-panel"
-            onClick={() => setScope(t.scope)}
-          >
-            {t.label}
-          </button>
-        ))}
-        </div>
+      <header className="page-head">
+        <h1>Audit trail</h1>
       </header>
 
-      <div id="audit-panel" role="tabpanel" aria-labelledby={`tab-${scope}`}>
+      <div>
         {error && (
           <p className="error" role="alert">
             Could not load the audit trail. {error}
@@ -266,9 +246,9 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
         {events && (
           <>
             <ChainStatus events={events}>
-              {api instanceof MockGatewayApi && events.length > 1 && (
+              {scope === 'aimo' && api instanceof MockGatewayApi && events.length > 1 && (
                 <p>
-                  <button type="button" className="btn" onClick={() => void api.tamper(events[1]!.seq)}>
+                  <button type="button" className="btn" data-tour="tamper" onClick={() => void api.tamper(events[1]!.seq)}>
                     Demo: tamper with event #{events[1]!.seq}
                   </button>
                 </p>

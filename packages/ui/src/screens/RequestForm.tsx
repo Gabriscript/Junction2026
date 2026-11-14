@@ -1,11 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { ReasonCode } from '@junction/shared';
-import type { GatewayApi } from '../api';
+import { MockGatewayApi, type GatewayApi } from '../api';
 import type { MenuResult, UiOrder } from '../contract';
 import { UNIT_CODE_NAMES } from '@junction/shared';
-import { eur, ReasonChips, StatusBadge, whyText } from '../ui';
+import { history, parLevels, parseMessage, reviewWeek } from '../kitchen';
+import { eur, firstSentence, ReasonChips, StatusBadge, substituteReasons, WhyText } from '../ui';
 import { ProductPhoto } from './Compact';
 import { CaptureBar } from './Capture';
+import type { TourStep } from './Tour';
 
 const LINE_STATUS: Record<MenuResult['lines'][number]['status'], { label: string; tone: 'ok' | 'warn' | 'stop' }> = {
   auto_approved: { label: 'Ordered', tone: 'ok' },
@@ -49,6 +51,27 @@ function WhatWasOrdered({ lines }: { lines: MenuResult['lines'] }) {
 const COURSE: Record<string, string> = { appetizer: 'Appetizer', main: 'Main', dessert: 'Dessert' };
 
 const qty = (n: number, unit: string) => `${n.toLocaleString('fi-FI', { maximumFractionDigits: 3 })} ${unit === 'ST' ? 'pcs' : unit.toLowerCase()}`;
+
+const pars = parLevels(history);
+
+/** An amount far from the kitchen's usual one (reviewWeek on the demo history), asked about before anything is ordered. */
+function unusual(text: string) {
+  const lines = parseMessage(text).lines;
+  const finding = reviewWeek(history, [], lines).find((f) => f.kind === 'quantity');
+  const line = finding && lines.find((l) => l.item === finding.item);
+  const par = finding && pars.get(finding.item);
+  if (!line || !par || par.unit !== line.unit) return undefined;
+  const usual = Math.round(par.median);
+  const times = line.quantity / usual;
+  const asked = qty(line.quantity, line.unit);
+  return {
+    text,
+    asked,
+    usual: qty(usual, line.unit),
+    fixed: lines.map((l) => `${l === line ? usual : l.quantity} ${l.unit} ${l.item}`).join(', '),
+    message: `${asked} is ${times >= 1 ? `${Math.round(times)}x` : `1/${Math.round(1 / times)} of`} your usual ${qty(usual, line.unit)}. Did you mean ${usual}?`,
+  };
+}
 
 const day = (iso: string) =>
   new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'Europe/Helsinki' }).format(new Date(`${iso}T12:00:00Z`));
@@ -115,7 +138,47 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
   );
 }
 
-export function RequestForm({ api }: { api: GatewayApi }) {
+/** A product is short: Mikko shows the substitute (photo, reason, price) and orders only after the chef accepts. */
+function SubstituteOffer({ order, onAccept, onWait }: { order: UiOrder; onAccept: () => void; onWait: () => void }) {
+  const sub = order.lines.find((l) => l.substituteFor)!;
+  const short = order.lines.find((l) => l.productId === sub.substituteFor)?.productName ?? `Product ${sub.substituteFor}`;
+  const [reason, calc] = firstSentence(substituteReasons(order).get(sub.lineId) ?? 'Same category, allowed by your mandate.');
+  return (
+    <section className="card sub-offer" aria-labelledby="sub-h" data-tour="substitute">
+      <h2 id="sub-h">{short} is running short</h2>
+      <ul className="compact-lines">
+        <li className="compact-line">
+          <ProductPhoto productId={sub.productId} name={sub.productName} />
+          <div className="compact-text">
+            <strong>{sub.productName}</strong>
+            <span className="muted">
+              {sub.quantity} × {eur(sub.unitPrice)}
+            </span>
+          </div>
+          <span className="compact-price">{eur(sub.totals.gross)}</span>
+        </li>
+      </ul>
+      <p>{reason}</p>
+      {calc && (
+        <details className="more">
+          <summary>Details</summary>
+          <p>{calc}</p>
+        </details>
+      )}
+      <div className="button-row">
+        <button type="button" className="btn primary" onClick={onAccept}>
+          Accept substitute
+        </button>
+        <button type="button" className="btn quiet" onClick={onWait}>
+          Keep waiting
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** `tour`: the demo tour step on screen; it types its request, and may send it and answer the quantity check. */
+export function RequestForm({ api, tour }: { api: GatewayApi; tour?: Pick<TourStep, 'ask' | 'send' | 'fix'> }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -124,20 +187,20 @@ export function RequestForm({ api }: { api: GatewayApi }) {
   const [followUp, setFollowUp] = useState('');
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string>();
+  const [flag, setFlag] = useState<ReturnType<typeof unusual>>();
+  const [proposal, setProposal] = useState<{ text: string; order: UiOrder }>();
+  const [note, setNote] = useState<string>();
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!text.trim()) {
-      setError('Write or scan what you need first.');
-      return;
-    }
+  const run = async (job: () => Promise<void>) => {
     setBusy(true);
     setError(undefined);
     setOrder(undefined);
     setResults([]);
+    setFlag(undefined);
+    setProposal(undefined);
+    setNote(undefined);
     try {
-      if (api.planMenu) setResults([await api.planMenu(text.trim())]);
-      else setOrder(await api.submitRequest(text.trim()));
+      await job();
       setText('');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -145,6 +208,33 @@ export function RequestForm({ api }: { api: GatewayApi }) {
       setBusy(false);
     }
   };
+
+  // Mock flow (no planMenu): an unusual amount is asked about, a short product gets a substitute offer, only then the order goes out.
+  const place = async (t: string, checked = false) => {
+    const slip = checked ? undefined : unusual(t);
+    const draft = !slip && api instanceof MockGatewayApi ? await api.preview(t) : undefined;
+    if (slip) setFlag(slip);
+    else if (draft?.lines.some((l) => l.substituteFor)) setProposal({ text: t, order: draft });
+    else setOrder(await api.submitRequest(t));
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) {
+      setError('Write or scan what you need first.');
+      return;
+    }
+    const t = text.trim();
+    await run(async () => (api.planMenu ? setResults([await api.planMenu(t)]) : place(t)));
+  };
+
+  // Runs once: App remounts this form for every tour step, so each step starts from a clean screen.
+  useEffect(() => {
+    const ask = tour?.ask;
+    if (!ask) return;
+    if (!tour.send) setText(ask);
+    else void run(() => place(tour.fix ? (unusual(ask)?.fixed ?? ask) : ask));
+  }, []);
 
   const sendFollowUp = async (e: FormEvent) => {
     e.preventDefault();
@@ -174,7 +264,7 @@ export function RequestForm({ api }: { api: GatewayApi }) {
 
   return (
     <div className="new-order">
-      <h1 className={started || order ? 'visually-hidden' : 'new-order-greet'}>What do you need, chef?</h1>
+      <h1 className={started || order || flag || proposal || note ? 'visually-hidden' : 'new-order-greet'}>What do you need, chef?</h1>
 
       <div role="status" aria-live="polite">
         {results.map((r, i) => (
@@ -187,6 +277,32 @@ export function RequestForm({ api }: { api: GatewayApi }) {
             </a>
           </p>
         )}
+        {flag && (
+          <section className="card" aria-labelledby="flag-h" data-tour="qty-flag">
+            <h2 id="flag-h">Check the quantity</h2>
+            <p>{flag.message}</p>
+            <p className="muted">Nothing is ordered yet.</p>
+            <div className="button-row">
+              <button type="button" className="btn primary" onClick={() => void run(() => place(flag.fixed))}>
+                Use {flag.usual}
+              </button>
+              <button type="button" className="btn quiet" onClick={() => void run(() => place(flag.text, true))}>
+                Keep {flag.asked}
+              </button>
+            </div>
+          </section>
+        )}
+        {proposal && (
+          <SubstituteOffer
+            order={proposal.order}
+            onAccept={() => void run(async () => setOrder(await api.submitRequest(proposal.text)))}
+            onWait={() => {
+              setProposal(undefined);
+              setNote('Nothing ordered. Ask Mikko again when the stock is back.');
+            }}
+          />
+        )}
+        {note && <p className="card">{note}</p>}
         {order && (
           <section className="card" aria-label="Result">
             <div className="card-head">
@@ -194,9 +310,7 @@ export function RequestForm({ api }: { api: GatewayApi }) {
               <StatusBadge status={order.status} />
             </div>
             <ReasonChips codes={order.decision.reasonCodes} />
-            {whyText(order).map((text, i) => (
-              <p key={i}>{text}</p>
-            ))}
+            <WhyText order={order} />
             <p>
               <a href={`#/orders/${order.orderId}`}>Open decision record for {order.orderId}</a>
             </p>
@@ -204,7 +318,7 @@ export function RequestForm({ api }: { api: GatewayApi }) {
         )}
       </div>
 
-      <form onSubmit={started ? sendFollowUp : submit} noValidate className="request-form composer-dock">
+      <form onSubmit={started ? sendFollowUp : submit} noValidate className="request-form composer-dock" data-tour="composer">
         {shownError && (
           <p className="error" id="request-error" role="alert">
             {shownError}

@@ -10,7 +10,7 @@ import {
 } from '@junction/shared';
 import type { AuditScope, MenuResult, UiOrder } from './contract';
 import { hashEvent } from './hash';
-import { auroraOrder, eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, weekOrder, type SeedEvent } from './mockData';
+import { auroraOrder, eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, tourOrder, weekOrder, type SeedEvent } from './mockData';
 import type { WeekOrder } from './kitchen';
 
 export interface GatewayApi {
@@ -191,18 +191,23 @@ export class MockGatewayApi implements GatewayApi {
     };
   }
 
-  // shortcut: no agent behind the mock, so a request reuses a demo cart (ice cream = auto-approved,
+  // shortcut: no agent behind the mock, so a request reuses one of the kitchen's (Aurora) demo carts (ice cream = auto-approved,
   // anything else = needs approval). The real gateway + agent replace this.
-  async submitRequest(text: string) {
-    const template = /ice cream|gelato/i.test(text) ? hotelOrder : hospitalOrder;
+  private draft(text: string): UiOrder {
+    if (/tomato/i.test(text) && /ice cream|gelato/i.test(text)) return tourOrder(`ord-${this.nextOrder}`, text, new Date().toISOString());
+    const template = /ice cream|gelato/i.test(text) ? auroraOrder : hospitalOrder;
     const now = new Date().toISOString();
-    const order: UiOrder = {
-      ...structuredClone(template),
-      orderId: `ord-${this.nextOrder++}`,
-      requestText: text,
-      createdAt: now,
-      updatedAt: now,
-    };
+    return { ...structuredClone(template), orderId: `ord-${this.nextOrder}`, requestText: text, createdAt: now, updatedAt: now };
+  }
+
+  /** Demo hook: the cart Mikko would place for this request, not stored, so the chef sees a substitute before anything is ordered. */
+  async preview(text: string) {
+    return this.draft(text);
+  }
+
+  async submitRequest(text: string) {
+    const order = this.draft(text);
+    this.nextOrder++;
     this.orders.push(order);
     for (const e of eventsForOrder(order)) void this.append(e);
     await this.tail;

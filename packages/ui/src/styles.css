@@ -87,7 +87,6 @@ code, .hashes { font-family: var(--mono); font-size: 0.875rem; }
 
 main { display: block; padding: 20px 16px calc(var(--nav-h) + 40px + env(safe-area-inset-bottom, 0px)); }
 main > * + * { margin-top: 24px; }
-.demo-note { color: var(--ink-soft); font-size: 0.875rem; }
 
 /* ---------- page parts ---------- */
 .page-head > * + * { margin-top: 8px; }
@@ -114,9 +113,7 @@ section + section, .card + .card, section + .card { margin-top: 24px; }
 /* summary cards */
 .stat { display: flex; flex-direction: column; gap: 16px; padding: 20px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-card); }
 .stat-title { display: flex; align-items: center; gap: 12px; }
-.stat-title > span:last-child { display: grid; }
 .stat-title strong { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
-.stat-title span span { color: var(--ink-soft); font-size: 0.875rem; }
 .tile { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--lime); color: var(--ink); flex: none; }
 
 /* badges and reasons: icon + text, never colour alone */
@@ -231,7 +228,7 @@ form > label + * { margin-top: 0; }
 .tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2); }
 .tabs button { min-height: 44px; padding: 0 16px; border-radius: 999px; font: inherit; font-size: 0.9375rem; font-weight: 600; color: var(--ink-soft); background: none; border: 0; cursor: pointer; }
 .tabs button:hover { color: var(--ink); }
-.tabs button[aria-selected='true'] { background: var(--accent); color: var(--surface); }
+.tabs button[aria-pressed='true'] { background: var(--accent); color: var(--surface); }
 
 /* chat: the agent's questions */
 .questions { display: grid; gap: 12px; }
@@ -387,8 +384,8 @@ form > label + * { margin-top: 0; }
   .crumbs [aria-current='page'] { color: var(--ink); font-weight: 600; }
   .who-name { display: inline; }
   main { flex: 1; padding: 32px max(32px, calc((100% - 75rem) / 2)) 48px; background: var(--canvas); border-radius: 16px; }
-  .demo-note, .back { display: none; }
-  main > .demo-note + *, main > .back + * { margin-top: 0; }
+  .back { display: none; }
+  main > .back + * { margin-top: 0; }
 
   .detail-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
   .detail-grid > .card { margin-top: 0; grid-column: 1; }
@@ -545,3 +542,56 @@ a.brand, .side .brand a { min-height: 44px; }
 /* Status badge in the Done table opens the order, where the reason is shown */
 .badge-link { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
 .badge-link:hover .badge { filter: brightness(0.96); text-decoration: underline; }
+
+/* View switch: Kitchen | Valio Aimo in the top bar, the same pill as .tabs */
+.view-switch { flex: none; margin-left: auto; }
+.view-switch + .who { margin-left: 0; }
+.view-switch button { padding: 0 14px; white-space: nowrap; }
+@media (max-width: 639.98px) {
+  .view-long { display: none; }
+  .topbar { gap: 12px; }
+  .view-switch button { padding: 0 10px; }
+}
+@media (max-width: 1023.98px) {
+  .who { display: none; } /* its avatar and name are hidden here anyway; the switch names the view */
+  .side ul { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); } /* 4 Kitchen tabs or 2 Aimo tabs */
+}
+
+/* Word cap round */
+.recent th[scope='row'] { width: 100%; max-width: 0; } /* the request column takes the free width and truncates instead of widening the table */
+.orders.recent th[scope='row'] a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.order-card.compact .card-head { justify-content: flex-end; } /* the chevron is the head's only child now */
+
+/* Demo tour */
+:root { --scrim: oklch(24.6% 0.026 231 / 0.55); }
+.tour-btn { flex: none; gap: 8px; padding: 0 14px; }
+.tour-btn + .who { margin-left: 0; }
+.tour { position: fixed; inset: 0; z-index: 20; pointer-events: none; } /* the page stays clickable: Accept substitute, the tamper button */
+.tour-dim { background: var(--scrim); }
+.tour-spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 200vmax var(--scrim); pointer-events: none; }
+/* phone: docked to the bottom, or to the top when the target sits in the lower half */
+.tour-card { position: fixed; inset: auto 0 0 0; display: grid; gap: 8px; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--surface); color: var(--ink); border-radius: 16px 16px 0 0; box-shadow: var(--shadow-pop); pointer-events: auto; }
+.tour-card:focus { outline: none; }
+.tour-card.tour-low { inset: 0 0 auto 0; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 16px; border-radius: 0 0 16px 16px; }
+.tour-count { color: var(--ink-soft); font-size: 0.875rem; }
+.tour-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tour-actions .btn.quiet { margin-right: auto; padding-inline: 8px; }
+.tour-actions .btn.primary { flex: none; }
+@media (max-width: 479.98px) {
+  .topbar:has(.tour-btn) .brand-top .brand-name { display: none; } /* room for the tour button at 360 */
+}
+@media (max-width: 639.98px) {
+  .tour-btn { width: 44px; padding: 0; }
+  .tour-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (min-width: 640px) {
+  .tour-card, .tour-card.tour-low { inset: auto 24px 24px auto; width: min(22rem, calc(100% - 48px)); padding: 16px; border-radius: 16px; }
+  .tour-card.tour-placed { inset: var(--tour-top) auto auto var(--tour-left); }
+}
+/* Substitute offer: the product name wraps and the price drops below it on a phone (photo 64 + gap 12 = 76) */
+.sub-offer .compact-text, .sub-offer .compact-text > * { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 639.98px) {
+  .sub-offer .compact-line { flex-wrap: wrap; row-gap: 4px; }
+  .sub-offer .compact-text { flex-basis: calc(100% - 76px); }
+  .sub-offer .compact-price { margin-left: 76px; }
+}

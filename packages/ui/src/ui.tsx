@@ -14,10 +14,42 @@ export const vatPercent = (rate: number) => `${rate.toLocaleString('fi-FI')} %`;
 export const time = (ts: string) =>
   new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+/** The signed-in kitchen's customerRef in the demo data (Hotel Aurora): the Kitchen view shows only its orders. */
+export const AURORA = '300';
+
 export const shortHash = (hash: string) => hash.slice(0, 8);
 
 /** Agent rationale, then the gateway's case-specific reason messages. */
 export const whyText = (order: UiOrder) => [...(order.rationale?.split('\n') ?? []), ...order.decision.reasons.map((r) => r.message)].filter((t): t is string => !!t);
+
+/** [first sentence, the rest]: a sentence ends at . ! or ? before a space, so "2,5 L" and "2.5" stay whole. */
+export function firstSentence(text: string): [string, string] {
+  const lead = /^.*?[.!?](?=\s|$)/.exec(text)?.[0] ?? text;
+  return [lead, text.slice(lead.length).trim()];
+}
+
+/** The agent's why as one sentence, the rest (calculations, other reasons) behind a "More" fold. */
+export function WhyText({ order, className }: { order: UiOrder; className?: string }) {
+  const [first, ...others] = whyText(order);
+  if (!first) return null;
+  const [lead, tail] = firstSentence(first);
+  const rest = tail ? [tail, ...others] : others;
+  return (
+    <>
+      <p className={className}>{lead}</p>
+      {rest.length > 0 && (
+        <details className="more">
+          <summary>More</summary>
+          {rest.map((text, i) => (
+            <p key={i} className={className}>
+              {text}
+            </p>
+          ))}
+        </details>
+      )}
+    </>
+  );
+}
 
 /**
  * The agent's reason for each substitute line. Its rationale is a header, then one reason per
@@ -75,6 +107,7 @@ const ICONS = {
   orders: 'M5 19V11M10 19V5M15 19v-6M20 19V8M3.5 19.5h17',
   close: 'M7 7l10 10M17 7 7 17',
   bolt: 'M13 3.5 5.5 13.5h6l-1 7 7.5-10h-6z',
+  play: 'M8.5 5.5v13l10-6.5z',
   panel: 'M5 4.5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1zM9.5 4.5v15',
 } as const;
 export type IconName = keyof typeof ICONS;
@@ -87,12 +120,12 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   );
 }
 
-export function StatusBadge({ status }: { status: OrderStatus | DecisionStatus }) {
-  const { label, tone } = STATUS[status];
+export function StatusBadge({ status, label }: { status: OrderStatus | DecisionStatus; label?: string }) {
+  const { tone } = STATUS[status];
   return (
     <span className={`badge tone-${tone}`}>
       <ToneIcon tone={tone} />
-      {label}
+      {label ?? STATUS[status].label}
     </span>
   );
 }

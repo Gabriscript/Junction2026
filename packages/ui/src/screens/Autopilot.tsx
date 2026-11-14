@@ -63,16 +63,13 @@ export function Autopilot({ api }: { api: GatewayApi }) {
   };
 
   return (
-    <section className="card autopilot" aria-labelledby="ap-title">
+    <section className="card autopilot" aria-labelledby="ap-title" data-tour="autopilot">
       <div className="card-head">
         <p className="stat-title">
           <span className="tile">
             <Icon name="bolt" />
           </span>
-          <span>
-            <strong id="ap-title">Autopilot</strong>
-            <span>Mikko orders your usual items</span>
-          </span>
+          <strong id="ap-title">Autopilot</strong>
         </p>
         <button type="button" role="switch" aria-checked={on} aria-labelledby="ap-title" className="switch" onClick={toggle}>
           <span aria-hidden="true">{on ? 'On' : 'Off'}</span>
