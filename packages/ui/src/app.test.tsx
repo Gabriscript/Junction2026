@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { expect, test } from 'vitest';
-import { MockGatewayApi, toolPath } from './api';
+import { MockGatewayApi, toolPath, type GatewayApi } from './api';
 import { App } from './App';
 import { auditChain } from '@junction/shared/fixtures';
 import { verifyChain } from './hash';
@@ -301,4 +301,19 @@ test("the view switch hides other buyers' orders in Kitchen and shows them all i
   expect(screen.queryByRole('link', { name: /All orders/ })).toBeNull();
   expect(screen.queryByText(/Harbour Hotel/)).toBeNull();
   localStorage.removeItem('view');
+});
+
+test('the Demo tour button is on the live build too, and ?demo=tour opens the tour', async () => {
+  const live = { listOrders: async () => [], listAuditEvents: async () => [], subscribe: () => () => {} } as unknown as GatewayApi;
+  window.location.hash = '#/orders';
+  const first = render(<App api={live} />);
+  expect(await screen.findByRole('button', { name: /Demo tour/ })).toBeTruthy();
+  first.unmount();
+
+  window.history.pushState(null, '', '/?demo=tour');
+  render(<App api={new MockGatewayApi()} />);
+  expect(await screen.findByRole('dialog')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
+  expect(window.location.search).toBe('?demo'); // a reload stays in the demo but no longer restarts the tour
+  window.history.pushState(null, '', '/');
 });
