@@ -118,9 +118,6 @@ section + section, .card + .card, section + .card { margin-top: 24px; }
 .stat-title strong { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
 .stat-title span span { color: var(--ink-soft); font-size: 0.875rem; }
 .tile { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--lime); color: var(--ink); flex: none; }
-/* tiles alternate lime / lavender / purple like valioaimo.fi */
-.card:nth-of-type(3n+2) .tile { background: var(--lavender); color: var(--purple); }
-.card:nth-of-type(3n) .tile { background: var(--purple); color: var(--surface); }
 
 /* badges and reasons: icon + text, never colour alone */
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 10px; border-radius: 999px; font-weight: 600; font-size: 0.875rem; white-space: nowrap; }
@@ -143,6 +140,8 @@ section + section, .card + .card, section + .card { margin-top: 24px; }
 .lines li:first-child, .rows li:first-child, .events li:first-child, .trace li:first-child { padding-top: 0; }
 .line-main { display: flex; justify-content: space-between; gap: 16px; }
 .line-name { font-weight: 600; }
+.lines .line-with-photo { display: flex; gap: 12px; align-items: flex-start; }
+.line-body { flex: 1; min-width: 0; }
 .totals { padding-top: 12px; }
 .totals div { display: flex; justify-content: space-between; gap: 16px; padding-block: 3px; color: var(--ink-soft); }
 .alt-grid li { padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface-2); }
@@ -288,7 +287,7 @@ form > label + * { margin-top: 0; }
 .composer-hint { margin-top: 8px; color: var(--ink-soft); font-size: 0.875rem; text-align: center; }
 
 /* orders dashboard */
-.dash-grid { display: grid; gap: 16px; }
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } /* minmax(0): the 52-week heatmap must scroll inside its card, not widen the column */
 .dash-grid > .card { margin-top: 0; }
 .on-accent { color: var(--surface); font-weight: 600; }
 .chart-avg { display: grid; text-align: right; }
@@ -351,7 +350,7 @@ form > label + * { margin-top: 0; }
   .shell { transition: grid-template-columns 0.2s ease; }
   .side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .side .brand { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding-inline: 8px; white-space: nowrap; }
-  .side-toggle { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); cursor: pointer; }
+  .side-toggle { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); cursor: pointer; }
   .side-toggle:hover { background: var(--hover); color: var(--ink); }
   .side nav { position: static; padding: 0; background: none; border: 0; }
   .nav-label { display: block; padding: 0 12px 8px; color: var(--ink-soft); font-size: 0.875rem; font-weight: 600; }
@@ -461,6 +460,7 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .menu-line-head { align-items: center; }
 .menu-line-name { flex: 1; }
 a.brand { text-decoration: none; color: inherit; }
+a.brand, .side .brand a { min-height: 44px; }
 
 /* scan / upload / speak */
 .capture { display: grid; gap: 6px; margin-block: 8px; }
@@ -512,7 +512,7 @@ a.brand { text-decoration: none; color: inherit; }
 /* A2: New order composer (greeting centred, pill composer pinned above the bottom nav) */
 .new-order { display: flex; flex-direction: column; max-width: 48rem; min-height: calc(100dvh - 120px - var(--nav-h) - env(safe-area-inset-bottom, 0px)); margin-inline: auto; }
 .new-order-greet { flex: 1; display: grid; place-items: center; font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); text-align: center; }
-.new-order .composer { border-color: var(--field); }
+.new-order .composer:not(:focus-within) { border-color: var(--field); }
 .new-order .composer textarea { min-width: 0; }
 .new-order .capture { margin-block: 0; }
 .new-order .error { margin-bottom: 8px; }
@@ -521,3 +521,27 @@ a.brand { text-decoration: none; color: inherit; }
 @media (min-width: 1024px) {
   .new-order { min-height: calc(100dvh - 192px); }
 }
+
+/* Round 5: Autopilot switch on the title row; New order fits the phone viewport; compact reason chips */
+.autopilot .card-head { flex-wrap: nowrap; align-items: center; }
+.autopilot .stat-title { flex: 1; min-width: 0; }
+.autopilot .switch { flex: none; }
+@media (max-width: 1023.98px) {
+  /* topbar + main fill exactly one screen; main pads only for the fixed nav, so nothing scrolls */
+  .frame:has(.new-order) { display: flex; flex-direction: column; min-height: 100dvh; }
+  main:has(> .new-order) { flex: 1; display: flex; flex-direction: column; padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
+  main > .new-order { flex: 1; min-height: 0; width: 100%; }
+}
+/* 28px pill; the summary overflows it to a 44px tap row (row gap 16px keeps rows from overlapping) */
+.reasons { gap: 16px 8px; }
+.reason { align-items: flex-start; min-height: 28px; padding: 0 10px; }
+.reason .icon { margin-top: 7px; }
+.reason summary { min-height: 44px; margin-block: -8px; }
+.reason details > summary strong::after { content: none; }
+.reason:has(details[open]) { padding-bottom: 8px; border-radius: 12px; }
+/* Product facts: delivery reliability + CO2 (Autopilot rows, order-detail cart; not on Approvals cards: 40-word cap) */
+.pfacts { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--ink-soft); font-size: 0.875rem; }
+.pfact { display: inline-flex; align-items: center; gap: 4px; }
+/* Status badge in the Done table opens the order, where the reason is shown */
+.badge-link { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+.badge-link:hover .badge { filter: brightness(0.96); text-decoration: underline; }

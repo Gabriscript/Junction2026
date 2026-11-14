@@ -58,7 +58,7 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
           </section>
 
           <section className="card detail-proof" aria-label="Proof">
-            <details className="more">
+            <details className="more" open={order.status === 'pending_approval'}>
               <summary>Proof</summary>
               <dl className="facts">
                 <div>

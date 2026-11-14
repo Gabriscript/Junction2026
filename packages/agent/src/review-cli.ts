@@ -1,6 +1,6 @@
 /**
  * Demo scene "before you send": this week's draft orders checked against a synthetic 12-week
- * history and the menu. Pass "item=quantity[:unit]" to change the draft, e.g. milk=5000 basil=0 wurstel=5:KG.
+ * history and the menu. Pass "item=quantity[:unit]" to change the draft, e.g. tomatoes=300 pesto=0 "ice cream=20:L".
  *   npx tsx packages/agent/src/review-cli.ts
  */
 import { Unit } from './contract.js';
@@ -8,8 +8,8 @@ import { DEMO_MENU, expectedWeek, reviewWeek, syntheticHistory, type WeekOrder }
 
 const history = syntheticHistory(7, 12, '2026-11-16'); // synthetic: the dataset has no order history
 let week: WeekOrder[] = expectedWeek(history);
-// default draft: the classic slips, an extra zero on the milk and the basil forgotten
-const changes = process.argv.length > 2 ? process.argv.slice(2) : ['milk=5000', 'basil=0'];
+// default draft: the classic slips, an extra zero on the tomatoes and the pesto forgotten
+const changes = process.argv.length > 2 ? process.argv.slice(2) : ['tomatoes=300', 'pesto=0'];
 for (const change of changes) {
   const [item, value = ''] = change.split('=');
   const [amount, unit] = value.split(':');

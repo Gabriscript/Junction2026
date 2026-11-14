@@ -29,13 +29,13 @@ test('says what it could not read instead of guessing', () => {
 });
 
 test('"my usual order" starts from the history and the message overrides single lines', () => {
-  const parsed = parseMessage('My usual order, but 5000 L milk');
+  const parsed = parseMessage('My usual order, but 300 kg tomatoes');
   expect(parsed.usual).toBe(true);
   expect(parsed.unread).toEqual([]);
   const draft = draftFrom(parsed);
-  expect(draft.filter((o) => o.item === 'milk')).toEqual([{ item: 'milk', quantity: 5000, unit: 'L' }]);
+  expect(draft.filter((o) => o.item === 'tomatoes')).toEqual([{ item: 'tomatoes', quantity: 300, unit: 'KG' }]);
   expect(draft).toHaveLength(expectedWeek(history).length);
-  expect(draftFrom(parseMessage('usual order without basil')).some((o) => o.item === 'basil')).toBe(false);
+  expect(draftFrom(parseMessage('usual order without pesto')).some((o) => o.item === 'pesto')).toBe(false);
   // the corrected line stays where it was, so the read-back keeps its order
-  expect(draft.findIndex((o) => o.item === 'milk')).toBe(expectedWeek(history).findIndex((o) => o.item === 'milk'));
+  expect(draft.findIndex((o) => o.item === 'tomatoes')).toBe(expectedWeek(history).findIndex((o) => o.item === 'tomatoes'));
 });

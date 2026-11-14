@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_MENU, expectedWeek, parLevels, reviewWeek, syntheticHistory, type WeekOrder } from './history.js';
 
-const MARGHERITA = DEMO_MENU.filter((dish) => dish.name === 'pizza margherita');
+const MARGHERITA = DEMO_MENU.filter((dish) => dish.name !== 'vanilla gelato'); // the menu the history was ordered for
 const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
 
 /**
@@ -80,33 +80,33 @@ describe('demo week', () => {
   const history = syntheticHistory(7, 12, '2026-11-16');
 
   it('computes robust par levels from the history', () => {
-    const milk = parLevels(history).get('milk')!;
-    expect(milk).toMatchObject({ unit: 'L', every: 1, count: 12, weeksSince: 1 });
-    expect(milk.median).toBeGreaterThan(425);
-    expect(milk.median).toBeLessThan(575);
-    expect(parLevels(history).get('salt')).toMatchObject({ every: 4, count: 3 });
+    const tomatoes = parLevels(history).get('tomatoes')!;
+    expect(tomatoes).toMatchObject({ unit: 'KG', every: 1, count: 12, weeksSince: 1 });
+    expect(tomatoes.median).toBeGreaterThan(25.5);
+    expect(tomatoes.median).toBeLessThan(34.5);
+    expect(parLevels(history).get('oregano')).toMatchObject({ every: 4, count: 3 });
   });
 
-  it('asks about the typo, the forgotten basil and the new dish ingredient, once each', () => {
+  it('asks about the typo, the forgotten pesto and the new dish ingredient, once each', () => {
     const week = expectedWeek(history)
-      .filter((o) => o.item !== 'basil')
-      .map((o) => (o.item === 'milk' ? { ...o, quantity: 5000 } : o));
+      .filter((o) => o.item !== 'pesto')
+      .map((o) => (o.item === 'tomatoes' ? { ...o, quantity: 300 } : o));
     const findings = reviewWeek(history, DEMO_MENU, week);
     expect(findings.map((f) => [f.kind, f.item])).toEqual([
-      ['quantity', 'milk'],
-      ['missing', 'basil'],
-      ['menu', 'wurstel'],
+      ['quantity', 'tomatoes'],
+      ['missing', 'pesto'],
+      ['menu', 'ice cream'],
     ]);
-    expect(findings[0]?.message).toMatch(/^5,000 L of milk is .* more than usual \(.* L a week\): did you mean 500 L\?$/);
-    expect(findings[1]?.message).toContain('used in pizza margherita');
-    expect(findings[2]?.message).toBe('pizza tedesca needs wurstel: never ordered before and not in this week\'s orders');
-    // the answer the UI offers: the missing zero, the usual basil, nothing invented for a new ingredient
+    expect(findings[0]?.message).toMatch(/^300 KG of tomatoes is .* more than usual \(.* KG a week\): did you mean 30 KG\?$/);
+    expect(findings[1]?.message).toContain('used in fusilli al pesto');
+    expect(findings[2]?.message).toBe('vanilla gelato needs ice cream: never ordered before and not in this week\'s orders');
+    // the answer the UI offers: the missing zero, the usual pesto, nothing invented for a new ingredient
     expect(findings.map((f) => f.suggestion)).toEqual([
-      { item: 'milk', quantity: 500, unit: 'L' },
-      { item: 'basil', quantity: parLevels(history).get('basil')!.median, unit: 'KG' },
+      { item: 'tomatoes', quantity: 30, unit: 'KG' },
+      { item: 'pesto', quantity: parLevels(history).get('pesto')!.median, unit: 'KG' },
       undefined,
     ]);
-    const answered = week.map((o) => (o.item === 'milk' ? findings[0]!.suggestion! : o)).concat(findings[1]!.suggestion!, { item: 'wurstel', quantity: 5, unit: 'KG' });
+    const answered = week.map((o) => (o.item === 'tomatoes' ? findings[0]!.suggestion! : o)).concat(findings[1]!.suggestion!, { item: 'ice cream', quantity: 20, unit: 'L' });
     expect(reviewWeek(history, DEMO_MENU, answered)).toEqual([]);
   });
 });

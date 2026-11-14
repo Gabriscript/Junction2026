@@ -92,7 +92,7 @@ test('a new pending order from a request is announced and shown live', async () 
 test('money is decimal EUR shown as Finnish euros, VAT rate is a percent', async () => {
   expect(eur(1899).replace(/\s/g, ' ')).toBe('1 899,00 €');
   expect(vatPercent(13.5)).toBe('13,5 %');
-  expect((await new MockGatewayApi().getOrder('ord-1002')).totals).toEqual({ net: 270, vat: 36.45, gross: 306.45, currency: 'EUR' });
+  expect((await new MockGatewayApi().getOrder('ord-1002')).totals).toEqual({ net: 483.28, vat: 65.25, gross: 548.53, currency: 'EUR' });
 });
 
 test('verifyChain: seed is valid, buyer view tolerates links outside the view, broken link is caught', async () => {
@@ -126,30 +126,30 @@ test('chat: the first Enter reads back and flags the slips, nothing is ordered u
   render(<App api={api} />);
   const box = await screen.findByLabelText('Message the purchasing agent');
 
-  fireEvent.change(box, { target: { value: 'My usual order, but 5000 L milk' } });
+  fireEvent.change(box, { target: { value: 'My usual order, but 300 kg tomatoes' } });
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(await screen.findByText(/5,000 L of milk .* did you mean 500 L\?/)).toBeTruthy();
+  expect(await screen.findByText(/300 KG of tomatoes .* did you mean 30 KG\?/)).toBeTruthy();
   // the confirm names the risk instead of a generic "are you sure"
-  expect(screen.getByRole('button', { name: 'Send with 5,000 L milk' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Send with 300 KG tomatoes' })).toBeTruthy();
   expect(await api.listOrders()).toHaveLength(before);
 
   fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
   expect(await screen.findByText(/Sent\. Order ord-1004/)).toBeTruthy();
   const order = (await api.listOrders()).at(-1)!;
-  // the cart buys whole packs: 5,000 L of milk = 5,000 × 1 L cartons at the real price
-  expect(order.lines.find((l) => l.productId === '463335')).toMatchObject({ quantity: 5000, unit: 'ST', unitPrice: 1.4 });
+  // the cart buys what Aimo sells: loose tomatoes by the kilo, at the real price
+  expect(order.lines.find((l) => l.productId === '460027')).toMatchObject({ quantity: 300, unit: 'KG', unitPrice: 2.15 });
 });
 
 test('chat: one-tap fixes and the attached menu, then the order goes out corrected', async () => {
   const api = new MockGatewayApi();
   window.location.hash = '#/chat'; // chat moved off the default tab (request screen is the main flow)
   render(<App api={api} />);
-  fireEvent.change(await screen.findByLabelText('Message the purchasing agent'), { target: { value: 'My usual order, but 5000 L milk and no basil' } });
+  fireEvent.change(await screen.findByLabelText('Message the purchasing agent'), { target: { value: 'My usual order, but 300 kg tomatoes and no pesto' } });
   fireEvent.submit(screen.getByLabelText('Message the purchasing agent').closest('form')!);
   await screen.findByRole('list', { name: 'Open questions' });
 
-  fireEvent.click(screen.getByRole('button', { name: 'Use 500 L' }));
-  fireEvent.click(screen.getByRole('button', { name: /^Add .* KG basil$/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Use 30 KG' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Add .* KG pesto$/ }));
   expect(screen.queryByRole('list', { name: 'Open questions' })).toBeNull();
 
   // a menu photo brings in the new dish: the agent asks about its ingredient
@@ -157,15 +157,16 @@ test('chat: one-tap fixes and the attached menu, then the order goes out correct
   fireEvent.change(photo, { target: { files: [new File(['x'], 'menu-week-47.jpg', { type: 'image/jpeg' })] } });
   fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
   expect(await screen.findByText(/I used the sample menu/)).toBeTruthy();
-  fireEvent.click(await screen.findByRole('button', { name: 'Add wurstel' }));
-  fireEvent.change(screen.getByLabelText('Quantity of wurstel'), { target: { value: '5' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Add ice cream' }));
+  fireEvent.change(screen.getByLabelText('Quantity of ice cream'), { target: { value: '20' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
   fireEvent.click(await screen.findByRole('button', { name: 'Send order' }));
   await screen.findByText(/Sent\. Order/);
   const lines = (await api.listOrders()).at(-1)!.lines.map((l) => [l.productId, l.quantity]);
-  expect(lines).toEqual(expect.arrayContaining([['463335', 500], ['463022', 5]]));
-  expect(lines.some(([id]) => id === '460533')).toBe(true);
+  // 20 of ice cream = 4 tubs of 5 L; the pesto came back from the usual week
+  expect(lines).toEqual(expect.arrayContaining([['460027', 30], ['464967', 4]]));
+  expect(lines.some(([id]) => id === '460979')).toBe(true);
 });
 
 test('orders dashboard: the 2026 heatmap shows the total first, products on request; recent orders listed', async () => {
@@ -173,20 +174,22 @@ test('orders dashboard: the 2026 heatmap shows the total first, products on requ
   render(<App api={new MockGatewayApi()} />);
   const heat = (await screen.findByRole('heading', { name: '2026' })).closest('section')!;
   expect(within(heat).getByText('All items')).toBeTruthy();
-  expect(within(heat).queryByText('milk')).toBeNull();
+  expect(within(heat).queryByText('tomatoes')).toBeNull();
   fireEvent.click(within(heat).getByRole('button', { name: 'Show each product' }));
-  expect(within(heat).getByText('milk')).toBeTruthy();
+  expect(within(heat).getByText('tomatoes')).toBeTruthy();
   fireEvent.click(within(heat).getByRole('button', { name: 'Hide products' }));
-  expect(within(heat).queryByText('milk')).toBeNull();
+  expect(within(heat).queryByText('tomatoes')).toBeNull();
   expect(screen.queryByText('Your usual week')).toBeNull();
-  expect(await screen.findByRole('link', { name: /1,000 L lactose-free milk/ })).toBeTruthy();
+  expect(await screen.findByRole('link', { name: /300 L lactose-free vanilla ice cream/ })).toBeTruthy();
 });
 
-test('a substitute line shows what it replaces and the agent\'s reason', async () => {
+test('a substitute line names what it replaces; the reason is in the Why fold', async () => {
   render(<App api={new MockGatewayApi()} />);
   await go('#/orders/ord-1000');
-  const note = await screen.findByText(/Substitute for Lactose-free milk bag-in-box 10 L/);
-  expect(screen.getByText(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/)).toBeTruthy();
+  const note = await screen.findByText(/Substitute for GelatoLAB-Espoo 5L ice cream Vanilla lactose-free/);
+  expect(note.closest('li')?.closest('[aria-label="Cart lines"]')).toBeTruthy();
+  const why = screen.getByText('Why Mikko chose this').closest('details')!;
+  expect(within(why).getByText(/Only 40 of the 60 tubs of 5 L .* 1 432 € instead of 1 610,40 €/)).toBeTruthy();
 });
 
 test('the + menu closes on a click outside it and on Escape', async () => {
@@ -234,7 +237,7 @@ test('weekly spend shows 4 weeks, pages back through 12, and a picked week lists
   expect(earlier.disabled).toBe(true);
   fireEvent.click(within(chart).getByRole('button', { name: /Week 36/ }));
   expect(within(chart).getByText(/^Week 36, delivery/)).toBeTruthy();
-  expect(within(chart).getByText('milk')).toBeTruthy();
+  expect(within(chart).getByText('tomatoes')).toBeTruthy();
 });
 
 test('autopilot: switching it on sends the usual items due this Monday, minus the ones marked Ask me', async () => {
@@ -243,7 +246,7 @@ test('autopilot: switching it on sends the usual items due this Monday, minus th
   render(<App api={api} />);
   const card = (await screen.findByRole('switch', { name: 'Autopilot' })).closest('section')!;
   expect(within(card).getByRole('switch', { name: 'Autopilot' }).getAttribute('aria-checked')).toBe('false');
-  fireEvent.click(within(card).getByRole('checkbox', { name: /Ask me before ordering milk/ }));
+  fireEvent.click(within(card).getByRole('checkbox', { name: /Ask me before ordering tomatoes/ }));
   const before = (await api.listOrders()).length;
   fireEvent.click(within(card).getByRole('switch', { name: 'Autopilot' }));
   expect(await within(card).findByText(/Sent by Mikko/)).toBeTruthy();
@@ -251,10 +254,10 @@ test('autopilot: switching it on sends the usual items due this Monday, minus th
   expect(orders).toHaveLength(before + 1);
   const sent = orders.at(-1)!;
   expect(sent.requestText).toMatch(/^Usual order for Mon 16 Nov: .*mozzarella/);
-  expect(sent.requestText).not.toMatch(/milk/);
-  // the sent order is the cart the card showed: whole 2.5 kg bags at the real price, same total incl. VAT
-  expect(sent.lines.find((l) => l.productId === '463383')).toMatchObject({ quantity: 16, unit: 'BAG', unitPrice: 19.66 });
-  expect(within(card).getByText(/7 items/).textContent).toContain(eur(sent.totals.gross));
+  expect(sent.requestText).not.toMatch(/tomatoes/);
+  // the sent order is the cart the card showed: whole 125 g bags at the real price, same total incl. VAT
+  expect(sent.lines.find((l) => l.productId === '468526')).toMatchObject({ quantity: 336, unit: 'BAG', unitPrice: 2.24 }); // 42 kg median / 0.125 kg
+  expect(within(card).getByText(/6 items/).textContent).toContain(eur(sent.totals.gross));
 });
 
 test("a substitute line in the compact card carries a flag with Mikko's reason", () => {
@@ -262,5 +265,5 @@ test("a substitute line in the compact card carries a flag with Mikko's reason",
   const flag = screen.getByRole('button', { name: 'Substitute' });
   const tip = document.getElementById(flag.getAttribute('aria-describedby')!)!;
   expect(tip.getAttribute('role')).toBe('tooltip');
-  expect(tip.textContent).toMatch(/^SubstituteOnly 40 of the 100 bag-in-box packs/);
+  expect(tip.textContent).toMatch(/^SubstituteOnly 40 of the 60 tubs of 5 L/);
 });

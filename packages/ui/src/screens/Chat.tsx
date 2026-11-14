@@ -125,7 +125,7 @@ export function Chat({ api }: { api: GatewayApi }) {
           id: id(),
           from: 'agent',
           text: message
-            ? 'I found no quantity. Try "500 L milk, 40 kg mozzarella".'
+            ? 'I found no quantity. Try "30 kg tomatoes, 40 kg mozzarella".'
             : 'Menu added. What do you need?',
         });
       }

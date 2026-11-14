@@ -6,7 +6,7 @@ import { history, parLevels, THIS_MONDAY, type WeekOrder } from '../kitchen';
 import { totalsFromNet } from '@junction/shared';
 import { toPacks } from '../aimoProducts';
 import { eur, Icon, StatusBadge } from '../ui';
-import { packs, ProductPhoto } from './Compact';
+import { packs, ProductFacts, ProductPhoto } from './Compact';
 
 const rhythm = (every: number) => (every === 1 ? 'weekly' : every === 4 ? 'monthly' : `every ${every} weeks`);
 const round = (n: number) => (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10);
@@ -116,6 +116,7 @@ export function Autopilot({ api }: { api: GatewayApi }) {
                 <span className="ap-when">
                   {label(rhythm(u.every))} · {u.next === THIS_MONDAY ? 'due now' : `next ${day(u.next)}`}
                 </span>
+                <ProductFacts productId={u.cart?.product.productId} />
               </div>
               {u.cart && <span className="compact-price">{eur(u.gross)}</span>}
               <label className="ask-me">

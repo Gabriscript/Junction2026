@@ -132,22 +132,25 @@ function random(seed: number) {
   };
 }
 
-/** Hotel Aurora's kitchen: par quantity per order, unit, and every how many weeks it is ordered. */
+/**
+ * Hotel Aurora's kitchen: par quantity per order, unit, and every how many weeks it is ordered.
+ * Every item maps to a real Aimo product we have a photo of (ui/src/aimoProducts.ts).
+ */
 export const DEMO_PARS: { item: string; quantity: number; unit: Unit; every: number }[] = [
-  { item: 'milk', quantity: 500, unit: 'L', every: 1 },
-  { item: 'mozzarella', quantity: 40, unit: 'KG', every: 1 },
   { item: 'tomatoes', quantity: 30, unit: 'KG', every: 1 },
-  { item: 'fries', quantity: 50, unit: 'KG', every: 1 },
-  { item: 'basil', quantity: 1, unit: 'KG', every: 1 },
-  { item: 'flour', quantity: 100, unit: 'KG', every: 2 },
-  { item: 'olive oil', quantity: 20, unit: 'L', every: 2 },
-  { item: 'salt', quantity: 10, unit: 'KG', every: 4 },
+  { item: 'mozzarella', quantity: 40, unit: 'KG', every: 1 },
+  { item: 'fusilli', quantity: 50, unit: 'KG', every: 1 },
+  { item: 'ciabatta', quantity: 200, unit: 'ST', every: 1 },
+  { item: 'pesto', quantity: 5, unit: 'KG', every: 1 },
+  { item: 'parmigiano', quantity: 10, unit: 'KG', every: 2 },
+  { item: 'oregano', quantity: 1, unit: 'KG', every: 4 },
 ];
 
-/** Pizza tedesca is new on the menu: würstel has never been ordered. */
+/** Vanilla gelato is new on the menu: ice cream has never been ordered. */
 export const DEMO_MENU: Dish[] = [
-  { name: 'pizza margherita', ingredients: ['flour', 'tomatoes', 'mozzarella', 'basil', 'olive oil', 'salt'] },
-  { name: 'pizza tedesca', ingredients: ['flour', 'tomatoes', 'mozzarella', 'wurstel', 'fries'] },
+  { name: 'fusilli al pesto', ingredients: ['fusilli', 'pesto', 'parmigiano'] },
+  { name: 'caprese ciabatta', ingredients: ['ciabatta', 'mozzarella', 'tomatoes', 'oregano'] },
+  { name: 'vanilla gelato', ingredients: ['ice cream'] },
 ];
 
 const addWeeks = (monday: string, weeks: number) => new Date(Date.parse(`${monday}T00:00:00Z`) + weeks * 7 * 86_400_000).toISOString().slice(0, 10);

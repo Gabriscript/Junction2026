@@ -89,7 +89,9 @@ export function Queue({ api }: { api: GatewayApi }) {
                     <td className="hide-sm muted">{time(order.createdAt)}</td>
                     <td className="hide-sm num num-col">{eur(order.totals.gross)}</td>
                     <td>
-                      <StatusBadge status={order.status} />
+                      <a className="badge-link" href={`#/orders/${order.orderId}`} aria-label={`Why order ${order.orderId} is ${order.status.replace('_', ' ')}`}>
+                        <StatusBadge status={order.status} />
+                      </a>
                     </td>
                   </tr>
                 ))}

@@ -20,8 +20,7 @@ const packsText = (n: number, unit?: string) =>
 /** What Valio Aimo will deliver from this request: ordered lines with photo, packs × signed price and total. */
 function WhatWasOrdered({ lines }: { lines: MenuResult['lines'] }) {
   const ordered = lines.filter((l) => l.status === 'auto_approved' && l.grossEur !== undefined);
-  const waiting = lines.filter((l) => l.status === 'needs_approval' && l.grossEur !== undefined);
-  if (ordered.length + waiting.length === 0) return null;
+  if (ordered.length === 0) return null;
   const sum = (ls: typeof lines) => ls.reduce((n, l) => n + (l.grossEur ?? 0), 0);
   const row = (l: MenuResult['lines'][number]) => (
     <li key={`${l.orderId}-${l.name}`} className="compact-line">
@@ -42,15 +41,6 @@ function WhatWasOrdered({ lines }: { lines: MenuResult['lines'] }) {
       <p className="ordered-total">
         <span>Ordered, incl. VAT</span> <strong>{eur(sum(ordered))}</strong>
       </p>
-      {waiting.length > 0 && (
-        <>
-          <h3>Waiting for your OK</h3>
-          <ul className="compact-lines">{waiting.map(row)}</ul>
-          <p className="ordered-total">
-            <span>If approved, incl. VAT</span> <strong>{eur(sum(waiting))}</strong>
-          </p>
-        </>
-      )}
       <p className="muted signed-note">✓ Fixed prices from offers signed by Valio Aimo</p>
     </section>
   );
@@ -66,7 +56,6 @@ const day = (iso: string) =>
 function MenuPlanView({ result, title }: { result: MenuResult; title?: string }) {
   const { plan, lines } = result;
   const hasPlan = plan.dishes.length > 0;
-  const waiting = lines.filter((l) => l.status === 'needs_approval').length;
   return (
     <>
       {title && <h2 className="result-title">{title}</h2>}
@@ -119,13 +108,6 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
           })}
         </ul>
         {!hasPlan && plan.assumptions.length > 0 && <p className="muted">{plan.assumptions.join(' · ')}</p>}
-        {waiting > 0 && (
-          <p>
-            <a className="btn primary" href="#/queue">
-              Approve {waiting} {waiting === 1 ? 'line' : 'lines'}
-            </a>
-          </p>
-        )}
       </section>
 
       <WhatWasOrdered lines={lines} />
@@ -187,6 +169,8 @@ export function RequestForm({ api }: { api: GatewayApi }) {
   const started = results.length > 0;
   const [value, setValue] = started ? [followUp, setFollowUp] : [text, setText];
   const shownError = started ? followError : error;
+  // One Approve for every result on screen, so corrections never add a second primary button.
+  const waiting = results.reduce((n, r) => n + r.lines.filter((l) => l.status === 'needs_approval').length, 0);
 
   return (
     <div className="new-order">
@@ -196,6 +180,13 @@ export function RequestForm({ api }: { api: GatewayApi }) {
         {results.map((r, i) => (
           <MenuPlanView key={i} result={r} title={i === 0 ? undefined : `Update ${i}`} />
         ))}
+        {waiting > 0 && (
+          <p>
+            <a className="btn primary" href="#/queue">
+              Approve {waiting} {waiting === 1 ? 'line' : 'lines'}
+            </a>
+          </p>
+        )}
         {order && (
           <section className="card" aria-label="Result">
             <div className="card-head">

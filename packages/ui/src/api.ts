@@ -191,10 +191,10 @@ export class MockGatewayApi implements GatewayApi {
     };
   }
 
-  // shortcut: no agent behind the mock, so a request reuses a demo cart (milk = auto-approved,
+  // shortcut: no agent behind the mock, so a request reuses a demo cart (ice cream = auto-approved,
   // anything else = needs approval). The real gateway + agent replace this.
   async submitRequest(text: string) {
-    const template = /milk/i.test(text) ? hotelOrder : hospitalOrder;
+    const template = /ice cream|gelato/i.test(text) ? hotelOrder : hospitalOrder;
     const now = new Date().toISOString();
     const order: UiOrder = {
       ...structuredClone(template),

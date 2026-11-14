@@ -2,9 +2,9 @@
  * The demo kitchen's items, matched by hand to real products in the Valio Aimo Junction 2026 product data
  * (data/raw/products.json, delivery-reliability.csv, carbon-footprint.csv; snapshot taken 2026-11-14).
  * reliability: share of past orders delivered as ordered (0-1); co2PerKg: product-group average. null = not in the files.
- * salesUnit + packSize: what one pack is, in the kitchen unit (catalogue netContent; basil, olive oil and wurstel have none
- * there, so their size is read from the product name). price: real Aimo price API answer, EUR excl. VAT per sales unit,
- * customer 300, delivery 2026-11-16 (scripts/fetch-demo-prices.ts, taken 2026-11-14); VAT 13.5 % on all nine.
+ * Every item has a product photo in public/products. salesUnit + packSize: what one pack is, in the kitchen unit
+ * (catalogue netContent; ciabatta: 18 buns a crate, counted in pieces). price: real Aimo price API answer, EUR excl. VAT per sales unit,
+ * customer 300, delivery 2026-11-16 (Aimo price API, taken 2026-11-14); VAT 13.5 % on all of them.
  * The challenge data is for Junction 2026 only.
  */
 export interface AimoProduct {
@@ -13,21 +13,20 @@ export interface AimoProduct {
   vendor: string;
   reliability: number | null;
   co2PerKg: number | null;
-  salesUnit: 'ST' | 'BAG' | 'KG' | 'KI' | 'SK';
+  salesUnit: 'ST' | 'BAG' | 'KG' | 'KI' | 'PRK';
   packSize: number;
   price: number;
 }
 
 export const AIMO_PRODUCTS: Record<string, AimoProduct> = {
-  "milk": { productId: '463335', name: "Valio Eila® 3 % milk drink 1 l lactose free", vendor: "VALIO OY TUORE", reliability: 1.0, co2PerKg: 1.1, salesUnit: 'ST', packSize: 1, price: 1.4 },
-  "mozzarella": { productId: '463383', name: "Maestrella Mozzarella grated 21% 2,5kg lactose free", vendor: "EURIAL INTERNATIONAL", reliability: 0.969, co2PerKg: 5.21, salesUnit: 'BAG', packSize: 2.5, price: 19.66 },
   "tomatoes": { productId: '460027', name: "TOMATO NL/BE/ES 1.CL", vendor: "STAAY FOOD GROOP B.V.", reliability: 0.999, co2PerKg: 1.96, salesUnit: 'KG', packSize: 1, price: 2.15 },
-  "fries": { productId: '461203', name: "McCain original country style fries 2,5kg frozen", vendor: "MCCAIN FOODS EUROPE BV", reliability: 0.999, co2PerKg: 0.39, salesUnit: 'BAG', packSize: 2.5, price: 5.74 },
-  "basil": { productId: '460533', name: "BASIL FRESH 1KG BOX", vendor: "STAAY FOOD GROOP B.V.", reliability: 0.938, co2PerKg: 0.38, salesUnit: 'KI', packSize: 1, price: 21.03 },
-  "flour": { productId: '460091', name: "Myllärin Special Wheat flour 20 kg", vendor: "HELSINGIN MYLLY OY", reliability: null, co2PerKg: 0.77, salesUnit: 'SK', packSize: 20, price: 12.39 },
-  "olive oil": { productId: '462909', name: "VOT 5L EXTRA VIRG OLIVEOIL", vendor: "VALIO OY / VALIO AIMO", reliability: 0.996, co2PerKg: 2.11, salesUnit: 'ST', packSize: 5, price: 42 },
-  "salt": { productId: '460215', name: "Berner Sea salt medium coarse 25 kg", vendor: "BERNER OY /AGENTUURI", reliability: null, co2PerKg: 0.42, salesUnit: 'SK', packSize: 25, price: 11.4 },
-  "wurstel": { productId: '463022', name: "SAUSAGE WIENER 1KG", vendor: "VALIO OY / VALIO AIMO", reliability: null, co2PerKg: 4.92, salesUnit: 'ST', packSize: 1, price: 10.52 },
+  "mozzarella": { productId: '468526', name: "Castelli mozzarella bufala 125g mozzarella cheese from buffalo milk", vendor: "CASTELLI 1892 SCANDINAVIA AB ITALIA", reliability: 0.92, co2PerKg: 3.9, salesUnit: 'BAG', packSize: 0.125, price: 2.24 },
+  "fusilli": { productId: '460008', name: "Barilla 5kg Fusilli dry pasta", vendor: "OY CONAXESS TRADE FINLAND AB TEOLLI", reliability: 1.0, co2PerKg: 1.44, salesUnit: 'BAG', packSize: 5, price: 18.14 },
+  "ciabatta": { productId: '468490', name: "Eesti Pagar White ciabatta sandwich bun 18 x 110g", vendor: "EESTI PAGAR AS", reliability: null, co2PerKg: 1.44, salesUnit: 'KI', packSize: 18, price: 7.58 },
+  "pesto": { productId: '460979', name: "KNORR seasoning paste pesto 340g", vendor: "UNILEVER FINLAND OY SK KUIVA", reliability: 1.0, co2PerKg: 2.645, salesUnit: 'PRK', packSize: 0.34, price: 12.42 },
+  "parmigiano": { productId: '471221', name: "Castelli parmigiano reggiano 12 months cheese 5x1kg", vendor: "CASTELLI 1892 SCANDINAVIA AB ITALIA", reliability: 0.948, co2PerKg: 5.115, salesUnit: 'KG', packSize: 1, price: 25.59 },
+  "oregano": { productId: '467375', name: "Salliselta Oregano 800g", vendor: "MAUSTE-SALLINEN OY", reliability: null, co2PerKg: 4.975, salesUnit: 'ST', packSize: 0.8, price: 13.62 },
+  "ice cream": { productId: '464967', name: "Suomen Jäätelö Vanilla ice cream 5l", vendor: "OY SUOMEN JÄÄTELÖ AB", reliability: null, co2PerKg: 0.79, salesUnit: 'ST', packSize: 5, price: 39.67 },
 };
 
 /**
