@@ -1,8 +1,8 @@
 // Mikko's Autopilot: the kitchen's usual items, on the rhythm read from its last 12 weeks, ordered without the chef asking.
 import { useState } from 'react';
-import type { GatewayApi } from '../api';
+import { MockGatewayApi, type GatewayApi } from '../api';
 import type { UiOrder } from '../contract';
-import { history, parLevels, THIS_MONDAY, type WeekOrder } from '../kitchen';
+import { history, MOCK_AUTO_LIMIT, parLevels, THIS_MONDAY, type WeekOrder } from '../kitchen';
 import { totalsFromNet } from '@junction/shared';
 import { toPacks } from '../aimoProducts';
 import { eur, Icon, StatusBadge } from '../ui';
@@ -128,7 +128,7 @@ export function Autopilot({ api }: { api: GatewayApi }) {
         <ul className="ap-rules">
           <li>Quantity and rhythm come from your last 12 weeks.</li>
           <li>Every price is signed by Valio Aimo before the order goes out.</li>
-          <li>Above your mandate limit, or anything unusual, waits in Approvals.</li>
+          <li>Above your mandate limit{api instanceof MockGatewayApi ? ` (${eur(MOCK_AUTO_LIMIT)} in this demo)` : ''}, or anything unusual, waits in Approvals.</li>
           <li>Items marked Ask me are never ordered automatically.</li>
         </ul>
       </details>

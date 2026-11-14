@@ -8,6 +8,8 @@ import type { Unit } from '../../agent/src/contract';
 export { DEMO_MENU, expectedWeek, parLevels, reviewWeek, type Finding, type Unit, type WeekOrder };
 
 export const KITCHEN = 'Hotel Aurora kitchen';
+/** Auto-approve limit of the demo-mode kitchen (EUR incl. VAT): above every order the mock shows as auto-approved (largest 1,625). */
+export const MOCK_AUTO_LIMIT = 2000;
 /** ISO 8601 week number, the way Finland counts weeks: week 1 holds the year's first Thursday. */
 export function isoWeek(day: string): number {
   const d = new Date(`${day}T00:00:00Z`);
