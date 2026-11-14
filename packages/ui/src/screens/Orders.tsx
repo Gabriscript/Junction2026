@@ -1,3 +1,5 @@
+import { useId, useState } from 'react';
+import { AIMO_PRODUCTS } from '../aimoProducts';
 import type { GatewayApi } from '../api';
 import { history, isoWeek, KITCHEN, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
 import { DEMO_UNIT_PRICES, FALLBACK_UNIT_PRICE } from '../mockData';
@@ -16,10 +18,88 @@ const weeks = history.map((w) => ({
 const peak = Math.max(...weeks.map((w) => w.net));
 const average = weeks.reduce((s, w) => s + w.net, 0) / weeks.length;
 const due = pars.filter(([, p]) => p.weeksSince >= p.every);
+const WINDOW = 4; // weeks on screen; the arrows page back through the 12 the review uses
+const DUE_SHOWN = 5; // what fits the card beside the chart; the rest open with "View full list"
+
+const day = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+function WeeklySpend() {
+  const [end, setEnd] = useState(weeks.length); // window is weeks[end - WINDOW, end)
+  const [picked, setPicked] = useState(weeks.length - 1);
+  const shown = weeks.slice(end - WINDOW, end);
+  const week = history[picked]!;
+  const lines = week.orders.map((o) => ({ ...o, net: spendOf(o) }));
+
+  return (
+    <section className="card chart-card" aria-labelledby="spend-title">
+      <div className="card-head">
+        <div>
+          <h2 id="spend-title" className="card-title">
+            Weekly spend
+          </h2>
+          <p className="muted">
+            Weeks {shown[0]!.week} to {shown.at(-1)!.week}, excl. VAT
+          </p>
+        </div>
+        <p className="chart-avg">
+          <span className="muted">12-week average</span>
+          <strong className="num">{eur(average)}</strong>
+        </p>
+      </div>
+      <div className="bars-row">
+        <button type="button" className="page-btn" aria-label="Earlier weeks" disabled={end <= WINDOW} onClick={() => setEnd(end - WINDOW)}>
+          <Icon name="back" />
+        </button>
+        <ol className="bars" aria-label="Spend per week. Pick a week to see what you ordered.">
+          {shown.map((w, j) => {
+            const i = end - WINDOW + j;
+            return (
+              <li key={w.week}>
+                <button type="button" className={i === picked ? 'bar-btn picked' : 'bar-btn'} aria-pressed={i === picked} aria-label={`Week ${w.week}: ${eur(w.net)}`} onClick={() => setPicked(i)}>
+                  <span className="bar" style={{ height: `${Math.max(4, (w.net / peak) * 100)}%` }} />
+                  <span className="bar-label">W{w.week}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        <button type="button" className="page-btn" aria-label="Later weeks" disabled={end >= weeks.length} onClick={() => setEnd(end + WINDOW)}>
+          <Icon name="next" />
+        </button>
+      </div>
+      <div className="week-detail" aria-live="polite">
+        <p className="week-detail-head">
+          <strong>
+            Week {weeks[picked]!.week}, delivery {day(week.week)}
+          </strong>
+          <strong className="num">{eur(weeks[picked]!.net)}</strong>
+        </p>
+        <ul className="week-lines">
+          {lines.map((o) => (
+            <li key={o.item}>
+              <span>
+                {o.item}
+                {AIMO_PRODUCTS[o.item] && <span className="week-product">{AIMO_PRODUCTS[o.item]!.name}</span>}
+              </span>
+              <span className="num">
+                {qty(o.quantity >= 10 ? Math.round(o.quantity) : Math.round(o.quantity * 10) / 10)} {o.unit}
+              </span>
+              <span className="num">{eur(o.net)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
 export function Orders({ api }: { api: GatewayApi }) {
   const { data: orders, error } = useLive(api, () => api.listOrders(), 'my-orders');
   const mine = (orders ?? []).filter((o) => o.customerRef === AURORA).reverse();
+  const [allDue, setAllDue] = useState(false);
+  const dueId = useId();
+  const more = due.length > DUE_SHOWN;
 
   return (
     <>
@@ -45,8 +125,25 @@ export function Orders({ api }: { api: GatewayApi }) {
               <span>Delivery Mon 16 Nov</span>
             </span>
           </p>
-          <p className="stat-value">{due.length} items</p>
-          <p className="due-list">{due.map(([item]) => item).join(', ')}</p>
+          <p className="stat-value">
+            {more ? (
+              <button type="button" className="stat-link" aria-expanded={allDue} aria-controls={dueId} onClick={() => setAllDue(true)}>
+                {due.length} items
+              </button>
+            ) : (
+              `${due.length} items`
+            )}
+          </p>
+          <ul id={dueId} className="due-list">
+            {(allDue ? due : due.slice(0, DUE_SHOWN)).map(([item]) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          {more && (
+            <button type="button" className="due-more" aria-expanded={allDue} aria-controls={dueId} onClick={() => setAllDue(!allDue)}>
+              {allDue ? 'Show fewer' : `View full list (${due.length})`}
+            </button>
+          )}
           <p className="stat-foot">
             <a className="on-accent" href="#/new">
               Order them in the chat
@@ -54,86 +151,10 @@ export function Orders({ api }: { api: GatewayApi }) {
           </p>
         </section>
 
-        <section className="card chart-card" aria-labelledby="spend-title">
-          <div className="card-head">
-            <div>
-              <h2 id="spend-title" className="card-title">
-                Weekly spend
-              </h2>
-              <p className="muted">
-                Weeks {weeks[0]!.week} to {weeks.at(-1)!.week}, excl. VAT
-              </p>
-            </div>
-            <p className="chart-avg">
-              <span className="muted">Average</span>
-              <strong className="num">{eur(average)}</strong>
-            </p>
-          </div>
-          <ol className="bars" aria-label="Spend per week">
-            {weeks.map((w, i) => (
-              <li key={w.week} className={i === weeks.length - 1 ? 'latest' : undefined}>
-                <span className="bar" style={{ height: `${Math.max(4, (w.net / peak) * 100)}%` }} />
-                <span className="bar-label">
-                  <span className="visually-hidden">Week </span>
-                  <span aria-hidden="true">W</span>
-                  {w.week}
-                </span>
-                <span className="visually-hidden">: {eur(w.net)}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <WeeklySpend />
       </div>
 
       <Heatmap />
-
-      <section className="card" aria-labelledby="usual-title">
-        <h2 id="usual-title" className="card-title">
-          Your usual week
-        </h2>
-        <p className="muted">What you normally order. The agent checks every order against it.</p>
-        <div className="table-wrap">
-          <table className="usual">
-            <thead>
-              <tr>
-                <th scope="col">Item</th>
-                <th scope="col" className="num-col">
-                  Usual
-                </th>
-                <th scope="col" className="hide-sm">
-                  Rhythm
-                </th>
-                <th scope="col" className="hide-sm">
-                  Last 12 weeks
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {pars.map(([item, p]) => {
-                const series = history.map((w) => w.orders.find((o) => o.item === item)?.quantity ?? 0);
-                const top = Math.max(...series);
-                return (
-                  <tr key={item}>
-                    <th scope="row">{item}</th>
-                    <td className="num num-col">
-                      {qty(p.median >= 10 ? Math.round(p.median) : Math.round(p.median * 10) / 10)} {p.unit}
-                    </td>
-                    <td className="hide-sm muted">{p.every === 1 ? 'Every week' : `Every ${p.every} weeks`}</td>
-                    <td className="hide-sm">
-                      <span className="spark" aria-hidden="true">
-                        {series.map((v, i) => (
-                          <span key={i} style={{ height: `${v ? Math.max(12, (v / top) * 100) : 4}%` }} className={v ? undefined : 'gap'} />
-                        ))}
-                      </span>
-                      <span className="visually-hidden">Ordered in {series.filter(Boolean).length} of 12 weeks</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <section className="card" aria-labelledby="mine-title">
         <h2 id="mine-title" className="card-title">
@@ -217,14 +238,15 @@ const heatRows = [{ ...totalRow, level: levels(totalRow.cells.map((c) => c.spend
 const busiest = totalRow.cells.reduce((a, b) => (b.spend > a.spend ? b : a));
 
 function Heatmap() {
+  const [byItem, setByItem] = useState(false);
+  const rows = byItem ? heatRows : heatRows.slice(0, 1);
   return (
     <section className="card" aria-labelledby="heat-title">
       <div className="card-head">
         <div>
           <h2 id="heat-title" className="card-title">
-            Your year
+            2026
           </h2>
-          <p className="muted">One square per week. Darker means you spent more.</p>
         </div>
         <p className="chart-avg">
           <span className="muted">Busiest week</span>
@@ -234,14 +256,14 @@ function Heatmap() {
         </p>
       </div>
       <div className="heat-wrap">
-        <div className="heat" role="img" aria-label={`Spend per item and week in 2026, weeks 1 to ${thisWeek - 1}. Busiest week: week ${busiest.week}.`}>
+        <div id="heat-grid" className="heat" role="img" aria-label={`Spend ${byItem ? 'per item ' : ''}and week in 2026, weeks 1 to ${thisWeek - 1}. Busiest week: week ${busiest.week}.`}>
           <span />
           {Array.from({ length: WEEKS_IN_YEAR / 4 }, (_, i) => (
             <span key={i} className="heat-week" style={{ gridColumn: `${i * 4 + 2} / span 4` }}>
               W{i * 4 + 1}
             </span>
           ))}
-          {heatRows.map((row) => (
+          {rows.map((row) => (
             <div key={row.label} className={row.label === totalRow.label ? 'heat-row heat-total' : 'heat-row'}>
               <span className="heat-label">{row.label}</span>
               {row.cells.map((c) => (
@@ -255,9 +277,14 @@ function Heatmap() {
           ))}
         </div>
       </div>
-      <p className="heat-legend" aria-hidden="true">
-        Less <span className="cell l0" /> <span className="cell l1" /> <span className="cell l2" /> <span className="cell l3" /> <span className="cell l4" /> More
-      </p>
+      <div className="heat-foot">
+        <button type="button" className="more-btn" aria-expanded={byItem} aria-controls="heat-grid" onClick={() => setByItem(!byItem)}>
+          {byItem ? 'Hide products' : 'Show each product'}
+        </button>
+        <p className="heat-legend" aria-hidden="true">
+          Less <span className="cell l0" /> <span className="cell l1" /> <span className="cell l2" /> <span className="cell l3" /> <span className="cell l4" /> More
+        </p>
+      </div>
     </section>
   );
 }

@@ -35,6 +35,21 @@ const initials = (name: string) =>
 
 export function App({ api }: { api: GatewayApi }) {
   const route = useHashRoute();
+  const [narrow, setNarrow] = useState(() => {
+    try {
+      return localStorage.getItem('side-collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleSide = () => {
+    setNarrow(!narrow);
+    try {
+      localStorage.setItem('side-collapsed', narrow ? '0' : '1');
+    } catch {
+      // storage blocked: the choice just lasts until reload
+    }
+  };
   const main = useRef<HTMLElement>(null);
   const first = useRef(true);
   const { data: orders } = useLive(api, () => api.listOrders(), 'nav-orders');
@@ -62,20 +77,30 @@ export function App({ api }: { api: GatewayApi }) {
       <a className="skip" href="#main" onClick={skip}>
         Skip to content
       </a>
-      <div className="shell">
+      <div className={narrow ? 'shell narrow' : 'shell'}>
         <aside className="side">
-          <p className="brand">
-            <span className="brand-mark">
-              <Icon name="shield" />
-            </span>
-            Trusted Trade
-          </p>
+          <div className="side-head">
+            <p className="brand">
+              <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
+              <span className="brand-name">Trusted Trade</span>
+            </p>
+            <button
+              type="button"
+              className="side-toggle"
+              aria-label={narrow ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-expanded={!narrow}
+              title={narrow ? 'Expand sidebar' : 'Collapse sidebar'}
+              onClick={toggleSide}
+            >
+              <Icon name="panel" />
+            </button>
+          </div>
           <nav aria-label="Main">
             <p className="nav-label">Workspace</p>
             <ul>
               {NAV.map((item) => (
                 <li key={item.route}>
-                  <a href={`#/${item.route}`} aria-current={item.route === section ? 'page' : undefined}>
+                  <a href={`#/${item.route}`} title={narrow ? item.label : undefined} aria-current={item.route === section ? 'page' : undefined}>
                     <Icon name={item.icon} />
                     <span className="nav-long">{item.label}</span>
                     <span className="nav-short">{item.short}</span>
@@ -101,10 +126,8 @@ export function App({ api }: { api: GatewayApi }) {
         <div className="frame">
           <header className="topbar">
             <p className="brand brand-top">
-              <span className="brand-mark">
-                <Icon name="shield" />
-              </span>
-              Trusted Trade
+              <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
+              <span className="brand-name">Trusted Trade</span>
             </p>
             <p className="crumbs">
               {orderId ? (

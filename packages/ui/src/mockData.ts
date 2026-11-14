@@ -1,6 +1,7 @@
-// Synthetic demo data for the three demo scenes. Nothing here comes from the Aimo dataset
-// (product ids are 99xxxx, outside the real Aimo range, like the shared fixtures).
+// Synthetic demo data for the three demo scenes: the scripted orders use 99xxxx ids, outside the real Aimo range,
+// like the shared fixtures. Orders placed from the chat use real Aimo products (aimoProducts.ts).
 import { totalsFromNet, type Actor, type AuditEvent, type AuditVisibility, type OrderLine, type Totals } from '@junction/shared';
+import { AIMO_PRODUCTS } from './aimoProducts';
 import type { UiOrder } from './contract';
 
 export const gatewayActor: Actor = { type: 'gateway', id: 'gateway', name: 'Aimo gateway' };
@@ -204,9 +205,10 @@ export const rogueOrder: UiOrder = {
   ],
 };
 
-// Synthetic EUR per unit for the demo kitchen's items, not Aimo prices. Unknown items get the fallback.
+// EUR per unit, excl. VAT. milk is the real Aimo price API answer for 463335 (gateway fixture price.json, 2026-11-14);
+// the rest are synthetic until the price API is queried for them. Unknown items get the fallback.
 export const DEMO_UNIT_PRICES: Record<string, number> = {
-  milk: 1.05, mozzarella: 9.8, tomatoes: 2.4, fries: 2.1, basil: 24, flour: 0.95, 'olive oil': 7.5, salt: 0.6, wurstel: 8.9,
+  milk: 1.4, mozzarella: 9.8, tomatoes: 2.4, fries: 2.1, basil: 24, flour: 0.95, 'olive oil': 7.5, salt: 0.6, wurstel: 8.9,
 };
 export const FALLBACK_UNIT_PRICE = 5;
 
@@ -216,8 +218,8 @@ export function weekOrder(orderId: string, lines: { item: string; quantity: numb
     line({
       lineId: `ln-${i + 1}`,
       offerId: `off-${orderId}-${i + 1}`,
-      productId: String(990300 + i),
-      productName: l.item.charAt(0).toUpperCase() + l.item.slice(1),
+      productId: AIMO_PRODUCTS[l.item]?.productId ?? String(990300 + i),
+      productName: AIMO_PRODUCTS[l.item]?.name ?? l.item.charAt(0).toUpperCase() + l.item.slice(1),
       quantity: l.quantity,
       unit: l.unit,
       unitPrice: DEMO_UNIT_PRICES[l.item] ?? FALLBACK_UNIT_PRICE,

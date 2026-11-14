@@ -133,7 +133,7 @@ test('chat: the first Enter reads back and flags the slips, nothing is ordered u
   fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
   expect(await screen.findByText(/Sent\. Order ord-1004/)).toBeTruthy();
   const order = (await api.listOrders()).at(-1)!;
-  expect(order.lines.find((l) => l.productName === 'Milk')).toMatchObject({ quantity: 5000, unit: 'L' });
+  expect(order.lines.find((l) => l.productId === '463335')).toMatchObject({ quantity: 5000, unit: 'L' });
 });
 
 test('chat: one-tap fixes and the attached menu, then the order goes out corrected', async () => {
@@ -158,18 +158,22 @@ test('chat: one-tap fixes and the attached menu, then the order goes out correct
 
   fireEvent.click(await screen.findByRole('button', { name: 'Send order' }));
   await screen.findByText(/Sent\. Order/);
-  const lines = (await api.listOrders()).at(-1)!.lines.map((l) => [l.productName, l.quantity]);
-  expect(lines).toEqual(expect.arrayContaining([['Milk', 500], ['Wurstel', 5]]));
-  expect(lines.some(([name]) => name === 'Basil')).toBe(true);
+  const lines = (await api.listOrders()).at(-1)!.lines.map((l) => [l.productId, l.quantity]);
+  expect(lines).toEqual(expect.arrayContaining([['463335', 500], ['463022', 5]]));
+  expect(lines.some(([id]) => id === '460533')).toBe(true);
 });
 
-test('orders dashboard shows the par levels the agent checks against', async () => {
+test('orders dashboard: the 2026 heatmap shows the total first, products on request; recent orders listed', async () => {
   window.location.hash = '#/orders';
   render(<App api={new MockGatewayApi()} />);
-  const usual = await screen.findByRole('table', { name: '' });
-  expect(usual).toBeTruthy();
-  const milk = screen.getByRole('rowheader', { name: 'milk' }).closest('tr')!;
-  expect(within(milk).getByText('Every week')).toBeTruthy();
+  const heat = (await screen.findByRole('heading', { name: '2026' })).closest('section')!;
+  expect(within(heat).getByText('All items')).toBeTruthy();
+  expect(within(heat).queryByText('milk')).toBeNull();
+  fireEvent.click(within(heat).getByRole('button', { name: 'Show each product' }));
+  expect(within(heat).getByText('milk')).toBeTruthy();
+  fireEvent.click(within(heat).getByRole('button', { name: 'Hide products' }));
+  expect(within(heat).queryByText('milk')).toBeNull();
+  expect(screen.queryByText('Your usual week')).toBeNull();
   expect(await screen.findByRole('link', { name: /1,000 L lactose-free milk/ })).toBeTruthy();
 });
 
@@ -178,4 +182,66 @@ test('a substitute line shows what it replaces and the agent\'s reason', async (
   await go('#/orders/ord-1000');
   const note = await screen.findByText(/Substitute for Lactose-free milk bag-in-box 10 L/);
   expect(note.closest('p')?.textContent).toMatch(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/);
+});
+
+test('the + menu closes on a click outside it and on Escape', async () => {
+  window.location.hash = '#/new';
+  render(<App api={new MockGatewayApi()} />);
+  const plus = await screen.findByRole('button', { name: 'Attach a menu photo or a file' });
+  const menu = () => screen.queryByRole('button', { name: 'Photo of the menu' });
+  fireEvent.click(plus);
+  expect(menu()).toBeTruthy();
+  fireEvent.pointerDown(document.body);
+  expect(menu()).toBeNull();
+  fireEvent.click(plus);
+  fireEvent.pointerDown(menu()!);
+  expect(menu()).toBeTruthy();
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(menu()).toBeNull();
+  expect(document.activeElement).toBe(plus);
+});
+
+test('the sidebar collapses to icons, keeps link names and remembers the choice', async () => {
+  localStorage.removeItem('side-collapsed');
+  window.location.hash = '#/new';
+  const { unmount } = render(<App api={new MockGatewayApi()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Collapse sidebar' }));
+  expect(screen.getAllByRole('link', { name: /^Orders/ })[0]!.getAttribute('title')).toBe('Orders');
+  expect(localStorage.getItem('side-collapsed')).toBe('1');
+  unmount();
+  render(<App api={new MockGatewayApi()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Expand sidebar' }));
+  expect(localStorage.getItem('side-collapsed')).toBe('0');
+});
+
+test('due this week shows a short bullet list; the count and "View full list" open all of it', async () => {
+  window.location.hash = '#/orders';
+  render(<App api={new MockGatewayApi()} />);
+  const card = (await screen.findByText('Due this week')).closest('section')!;
+  const shown = () => within(card).getAllByRole('listitem').length;
+  expect(shown()).toBe(5);
+  fireEvent.click(within(card).getByRole('button', { name: /^\d+ items$/ }));
+  expect(shown()).toBe(8);
+  fireEvent.click(within(card).getByRole('button', { name: 'Show fewer' }));
+  expect(shown()).toBe(5);
+  fireEvent.click(within(card).getByRole('button', { name: 'View full list (8)' }));
+  expect(shown()).toBe(8);
+});
+
+test('weekly spend shows 4 weeks, pages back through 12, and a picked week lists what was ordered', async () => {
+  window.location.hash = '#/orders';
+  render(<App api={new MockGatewayApi()} />);
+  const chart = (await screen.findByRole('heading', { name: 'Weekly spend' })).closest('section')!;
+  const bars = () => within(chart).getAllByRole('button', { pressed: undefined }).filter((b) => b.hasAttribute('aria-pressed'));
+  expect(bars().map((b) => b.textContent)).toEqual([expect.stringContaining('W43'), expect.stringContaining('W44'), expect.stringContaining('W45'), expect.stringContaining('W46')]);
+  const later = within(chart).getByRole('button', { name: 'Later weeks' }) as HTMLButtonElement;
+  const earlier = within(chart).getByRole('button', { name: 'Earlier weeks' }) as HTMLButtonElement;
+  expect(later.disabled).toBe(true);
+  fireEvent.click(earlier);
+  fireEvent.click(earlier);
+  expect(bars()[0]!.textContent).toContain('W35');
+  expect(earlier.disabled).toBe(true);
+  fireEvent.click(within(chart).getByRole('button', { name: /Week 36/ }));
+  expect(within(chart).getByText(/^Week 36, delivery/)).toBeTruthy();
+  expect(within(chart).getByText('milk')).toBeTruthy();
 });

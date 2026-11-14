@@ -56,6 +56,26 @@ export function Chat({ api }: { api: GatewayApi }) {
   const doc = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const attachId = useId();
+  const attachBox = useRef<HTMLDivElement>(null);
+
+  // Close the + menu on a click or tap outside it, or on Escape (focus back on +).
+  useEffect(() => {
+    if (!attachOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!attachBox.current?.contains(e.target as Node)) setAttachOpen(false);
+    };
+    const onEsc = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setAttachOpen(false);
+      attachBox.current?.querySelector('button')?.focus();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [attachOpen]);
 
   const id = () => nextId.current++;
   const say = (...add: Message[]) => setMessages((all) => [...all, ...add]);
@@ -165,7 +185,7 @@ export function Chat({ api }: { api: GatewayApi }) {
         </p>
       )}
       <div className="composer-row">
-        <div className="attach">
+        <div className="attach" ref={attachBox}>
           <button
             type="button"
             className="icon-btn"
@@ -176,7 +196,7 @@ export function Chat({ api }: { api: GatewayApi }) {
           >
             <Icon name="plus" />
           </button>
-          <div id={attachId} className="attach-menu" hidden={!attachOpen} onKeyDown={(e) => e.key === 'Escape' && setAttachOpen(false)}>
+          <div id={attachId} className="attach-menu" hidden={!attachOpen}>
             <button type="button" onClick={() => pick(photo.current)}>
               <Icon name="image" />
               Photo of the menu
@@ -210,28 +230,7 @@ export function Chat({ api }: { api: GatewayApi }) {
     return (
       <div className="chat-empty">
         <h1>Good to see you, {KITCHEN}.</h1>
-        <p className="lead">Tell me what you need. I check it before anything is sent.</p>
         {composer}
-        <ul className="suggestions" aria-label="Suggestions">
-          <li>
-            <button type="button" onClick={() => send('Prepare my usual weekly order')}>
-              <Icon name="review" />
-              Prepare my usual weekly order
-            </button>
-          </li>
-          <li>
-            <button type="button" onClick={() => send('1,000 L lactose-free milk by Monday')}>
-              <Icon name="request" />
-              1,000 L lactose-free milk by Monday
-            </button>
-          </li>
-          <li>
-            <button type="button" onClick={() => pick(photo.current)}>
-              <Icon name="image" />
-              Attach this week's menu
-            </button>
-          </li>
-        </ul>
       </div>
     );
   }
