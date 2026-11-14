@@ -18,10 +18,12 @@
     "test": "npm run build:shared && vitest run",
     "test:watch": "npm run build:shared && vitest",
     "dev:ui": "npm run dev -w packages/ui",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo"
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
+    "load-catalogue": "npm run build:shared && tsx scripts/load-catalogue.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vitest": "^5.1.0"
   }
