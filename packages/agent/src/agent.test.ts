@@ -350,3 +350,32 @@ describe('review fixes: mandate constraints, allergen groups, neededBy, price bi
     expect(await runAgent(DEMO, await deps(gateway))).toMatchObject({ ordered: false, status: 'blocked' });
   });
 });
+
+describe('step 8: substitutes and partial fill', () => {
+  it('fills a short cheapest product with an allowed substitute, with a reason per line', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const propose = vi.spyOn(gateway, 'propose_order');
+    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { ...hotelMandate, substitutionPolicy: 'same_category' } });
+
+    expect(result.lines?.map((l) => [l.candidate.product.id, l.packs, l.substituteFor])).toEqual([[P.lfBib10, 40, null], [P.lfCase12, 50, P.lfBib10]]);
+    expect(result.decision).toEqual({ status: 'auto_approved', reasonCodes: [] });
+    expect(result.order?.totals.gross).toBe((47670 + 81720) / 100); // gateway sums per-line rounded gross, as the agent does
+    const sent = propose.mock.calls[0]?.[0];
+    expect(sent?.lines.map((l) => l.substituteFor)).toEqual([null, P.lfBib10]);
+    expect(sent?.rationale).toContain('only 40 of 100 packs');
+    expect(result.trace.find((s) => s.action === 'substitute')?.output).toContain('+14 % per L');
+  });
+
+  it('keeps one line when the mandate allows no listed substitute and one product covers the need', async () => {
+    const result = await runAgent(DEMO, await deps(new MockGateway({ now: () => NOW })));
+    expect(result.lines?.map((l) => [l.candidate.product.id, l.packs])).toEqual([[P.lfCase12, 84]]);
+  });
+
+  it('when nothing covers the need alone, proposes the split anyway and the gateway asks a human', async () => {
+    const gateway = new MockGateway({ now: () => NOW, stock: { [P.lfCase12]: 30, [P.lf1l]: 300 } });
+    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { ...hotelMandate, substitutionPolicy: 'none' } });
+    expect(result.lines?.map((l) => [l.candidate.product.id, l.packs])).toEqual([[P.lfBib10, 40], [P.lfCase12, 30], [P.lf1l, 240]]);
+    expect(result.decision).toEqual({ status: 'needs_approval', reasonCodes: ['SUBSTITUTION_OUTSIDE_PREFS'] });
+    expect(result.lines?.[1]?.reason).toContain('outside the mandate policy');
+  });
+});
