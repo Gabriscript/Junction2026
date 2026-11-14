@@ -14,12 +14,21 @@
  * Run: GATEWAY_URL=http://localhost:8787 npm run assistant -w @junction/agent  (port 8788)
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { fileURLToPath } from 'node:url';
+import Anthropic from '@anthropic-ai/sdk';
 import { SubstitutionPolicySchema, type Mandate, type Order } from '@junction/shared';
 import { hotelMandate } from '@junction/shared/fixtures';
 import { runAgent, type AgentResult } from '../agent.js';
 import { HttpGateway } from '../http-client.js';
 import { addDays, createProvider, todayIso } from '../llm.js';
 import { planMenu, RecipeError, type MenuLine, type MenuPlan } from '../recipe/index.js';
+
+// repo-root .env (AIMO keys, ANTHROPIC_API_KEY for the scan): Node's built-in loader, like the gateway
+try {
+  process.loadEnvFile(fileURLToPath(new URL('../../../../.env', import.meta.url)));
+} catch {
+  // no .env: rely on the real environment
+}
 
 const PORT = Number(process.env.ASSISTANT_PORT ?? 8788);
 const GATEWAY = (process.env.GATEWAY_URL ?? 'http://localhost:8787').replace(/\/+$/, '');
@@ -186,6 +195,45 @@ async function planAndOrder(text: string, context: { neededBy?: string | null } 
   return { plan, lines, orders };
 }
 
+// ---------------------------------------------------------------- scan: photo of a handwritten note → text
+
+const SCAN_MODEL = process.env.SCAN_MODEL ?? 'claude-haiku-5-5';
+const SCAN_PROMPT = `This is a photo or PDF of a restaurant order, menu or reservation note (often handwritten).
+Transcribe the text exactly as written, one line per line of the note. Keep the original language and spelling.
+Do not add, translate, correct or explain anything. If there is no readable text, answer with an empty response.`;
+
+async function scanImage(body: unknown): Promise<string> {
+  if (!process.env.ANTHROPIC_API_KEY) throw new HttpError(503, 'Scan needs ANTHROPIC_API_KEY in the .env file');
+  const { image, mediaType } = (body ?? {}) as { image?: unknown; mediaType?: unknown };
+  const type = String(mediaType ?? '');
+  if (typeof image !== 'string' || !image || !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(type)) {
+    throw new HttpError(400, 'image (base64) and mediaType (jpeg, png, webp or pdf) are required');
+  }
+  const source =
+    type === 'application/pdf'
+      ? ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: image } } as const)
+      : ({ type: 'image', source: { type: 'base64', media_type: type as 'image/jpeg' | 'image/png' | 'image/webp', data: image } } as const);
+  const client = new Anthropic();
+  const response = await client.messages.create({
+    model: SCAN_MODEL,
+    max_tokens: 1000,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          source,
+          { type: 'text', text: SCAN_PROMPT },
+        ],
+      },
+    ],
+  });
+  if (response.stop_reason === 'refusal') throw new HttpError(422, 'The note could not be read');
+  return response.content
+    .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+    .join('\n')
+    .trim();
+}
+
 // ---------------------------------------------------------------- http plumbing
 
 class HttpError extends Error {
@@ -194,12 +242,12 @@ class HttpError extends Error {
   }
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage, limit = 64_000): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 64_000) throw new HttpError(413, 'request too large');
+    if (size > limit) throw new HttpError(413, 'request too large');
     chunks.push(chunk as Buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
@@ -260,6 +308,10 @@ const server = createServer(async (req, res) => {
       const { plan, lines } = await planAndOrder(textOf(body), { neededBy });
       return send(res, 200, { plan, lines });
     }
+    if (req.method === 'POST' && url.pathname === '/api/scan') {
+      const text = await scanImage(await readJson(req, 8_000_000));
+      return send(res, 200, { text });
+    }
     if (req.method === 'POST' && url.pathname === '/api/requests') {
       const { orders } = await planAndOrder(textOf(await readJson(req)));
       const pick = orders.find((o) => o.status === 'pending_approval') ?? orders.find((o) => o.decision.status === 'blocked') ?? orders[0];
@@ -277,7 +329,8 @@ const server = createServer(async (req, res) => {
       return send(res, 200, events);
     }
     if (req.method === 'GET' && url.pathname === '/api/events') return await relayEvents(req, res);
-    if (req.method === 'GET' && url.pathname === '/api/health') return send(res, 200, { status: 'ok', gateway: GATEWAY, mandate: bistroMandate.mandateId });
+    if (req.method === 'GET' && url.pathname === '/api/health')
+      return send(res, 200, { status: 'ok', gateway: GATEWAY, mandate: bistroMandate.mandateId, scan: Boolean(process.env.ANTHROPIC_API_KEY) });
     send(res, 404, { error: 'not found' });
   } catch (error) {
     if (res.headersSent) return res.end();

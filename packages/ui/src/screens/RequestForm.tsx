@@ -5,6 +5,7 @@ import type { MenuResult, UiOrder } from '../contract';
 import { UNIT_CODE_NAMES } from '@junction/shared';
 import { eur, ReasonChips, StatusBadge, whyText } from '../ui';
 import { ProductPhoto } from './Compact';
+import { CaptureBar } from './Capture';
 
 const LINE_STATUS: Record<MenuResult['lines'][number]['status'], { label: string; tone: 'ok' | 'warn' | 'stop' }> = {
   auto_approved: { label: 'Ordered', tone: 'ok' },
@@ -206,6 +207,7 @@ export function RequestForm({ api }: { api: GatewayApi }) {
         <p className="muted" id="request-hint">
           Example: Wednesday dinner, 10 people. Fusilli al pesto. Dessert: gelato vaniglia e cioccolato
         </p>
+        <CaptureBar api={api} idPrefix="request" onText={(t, mode) => setText((prev) => (mode === 'append' && prev.trim() ? `${prev.trim()} ${t}` : t))} />
         <textarea
           id="request-text"
           rows={5}
@@ -252,6 +254,7 @@ export function RequestForm({ api }: { api: GatewayApi }) {
           <p className="muted" id="follow-hint">
             Example: add 2 kg parmesan · also 1 kg mozzarella · or a new dish. Delivery stays the same day.
           </p>
+          <CaptureBar api={api} idPrefix="follow" onText={(t, mode) => setFollowUp((prev) => (mode === 'append' && prev.trim() ? `${prev.trim()} ${t}` : t))} />
           <textarea
             id="follow-text"
             rows={2}

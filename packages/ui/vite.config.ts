@@ -1,8 +1,10 @@
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [react()],
+  // HTTPS=1 (npm run dev:https): self-signed certificate, so a real iPhone on the Wi-Fi may use the microphone
+  plugins: process.env.HTTPS === '1' ? [react(), basicSsl()] : [react()],
   // Inline (empty) PostCSS config: stops Vite from picking up a postcss.config.js in a parent folder.
   css: { postcss: {} },
   // /api → assistant server (buyer side), /v1 + JWKS → Valio Aimo gateway. Used with VITE_GATEWAY_URL=/ (npm run dev:live).

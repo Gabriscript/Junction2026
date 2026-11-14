@@ -14,6 +14,11 @@ Prerequisites: `.env` with `AIMO_API_KEY`, and `npm run load-catalogue` done onc
 - On the Mac / iOS Simulator: `http://localhost:5173/shop.html` → **Order with AI Assistant**.
 - On a real iPhone (same Wi-Fi as the Mac): `http://<Mac Wi-Fi IP>:5173/shop.html` (`ipconfig getifaddr en0` shows the IP). `dev:live` listens on all interfaces. Then tap the text box → **Scan Text** to read the handwritten reservation.
 
+## Scan, upload, speak (New request and Correction boxes)
+- **Scan note**: opens the phone camera; Claude (Haiku, `SCAN_MODEL` to change) reads the handwritten note and the text lands in the box for the chef to check. Needs `ANTHROPIC_API_KEY` in `.env` (the assistant server loads it; `/api/health` shows `"scan": true`).
+- **Upload file**: photo or PDF → same as Scan; **CSV / Excel (.xlsx)** are read in the browser, one row per line (no AI).
+- **Speak**: the browser's speech recognition (Safari/Chrome). Needs a secure page: on a real iPhone start the web app with `npm run dev:https -w packages/ui` and open `https://<Mac IP>:5173/shop.html` (accept the self-signed certificate once). On the Mac and the simulator `http://localhost` is enough. Language follows the phone's language.
+
 ## What happens
 1. The chef's text (typed or scanned) goes to `POST /api/menu`.
 2. `planMenu` turns it into dishes and a merged shopping list (recipe table with Aimo category codes, or Claude if `LLM_PROVIDER=anthropic`).
