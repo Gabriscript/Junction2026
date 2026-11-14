@@ -27,6 +27,8 @@ export interface GatewayApi {
   submitWeek(lines: WeekOrder[], text: string): Promise<UiOrder>;
   /** Whole menu → plan + one decision per ingredient (assistant server only; the mock has none). */
   planMenu?(text: string, context?: { neededBy?: string | null }): Promise<MenuResult>;
+  /** Photo or PDF (base64) → the text on it (assistant server: Claude reads the note). */
+  scan?(base64: string, mediaType: 'image/jpeg' | 'application/pdf'): Promise<string>;
 }
 
 /** REST path of a registry tool, with `{param}` placeholders filled from the input. */
@@ -85,6 +87,10 @@ export class HttpGatewayApi implements GatewayApi {
   // The real agent parses the confirmed read-back itself, so the lines are not sent.
   submitWeek(_lines: WeekOrder[], text: string) {
     return this.submitRequest(text);
+  }
+  async scan(base64: string, mediaType: 'image/jpeg' | 'application/pdf') {
+    const { text } = (await this.call('POST', '/api/scan', { image: base64, mediaType })) as { text: string };
+    return text;
   }
   async planMenu(text: string, context: { neededBy?: string | null } = {}) {
     return (await this.call('POST', '/api/menu', { text, neededBy: context.neededBy ?? null })) as MenuResult;

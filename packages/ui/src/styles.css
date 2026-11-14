@@ -428,3 +428,11 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .menu-line-head { align-items: center; }
 .menu-line-name { flex: 1; }
 a.brand { text-decoration: none; color: inherit; }
+
+/* scan / upload / speak */
+.capture { display: grid; gap: 6px; margin-block: 8px; }
+.capture-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.capture-btn { min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; cursor: pointer; }
+.capture-btn.listening { background: var(--lime); border-color: var(--lime); color: var(--ink); }
+.capture-status { font-size: 0.875rem; }
+.sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
