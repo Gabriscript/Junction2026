@@ -28,7 +28,7 @@ describe('planMenu', () => {
     expect(list['tomato']).toEqual({ unit: 'KG', quantity: 0.6 });
     expect(list['mozzarella']).toEqual({ unit: 'KG', quantity: 0.4 });
     expect(list['fusilli']).toEqual({ unit: 'KG', quantity: 1 });
-    expect(list['pesto']).toEqual({ unit: 'KG', quantity: 0.5 });
+    expect(list['basil pesto']).toEqual({ unit: 'KG', quantity: 0.5 });
     // typo "vaniila" still recognised; one 70 ml scoop per flavour
     expect(list['vanilla ice cream']).toEqual({ unit: 'L', quantity: 0.7 });
     expect(list['chocolate ice cream']).toEqual({ unit: 'L', quantity: 0.7 });
@@ -36,7 +36,7 @@ describe('planMenu', () => {
 
   it('merges an ingredient used by two dishes into one line', async () => {
     const plan = await planMenu('8 pax: spaghetti al pesto; fusilli al pesto', { suggester: tableSuggester, today: TODAY });
-    const pesto = plan.lines.filter((l) => l.searchText === 'pesto');
+    const pesto = plan.lines.filter((l) => l.searchText === 'basil pesto');
     expect(pesto).toHaveLength(1);
     expect(pesto[0]!.total).toBe(800);
     expect(pesto[0]!.usedIn).toEqual(['spaghetti al pesto', 'fusilli al pesto']);

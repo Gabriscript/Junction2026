@@ -1,7 +1,7 @@
 import type { Mandate, Product } from '@junction/shared';
 import { clean, type Candidate } from './agent.js';
 import type { Unit } from './contract.js';
-import { packMath } from './packMath.js';
+import { packMath, orderableLot } from './packMath.js';
 
 /** One order line of the plan. `substituteFor` is the primary product it stands in for, null for the primary itself. */
 export interface PlanLine {
@@ -67,7 +67,7 @@ export function planFill(usable: Usable[], need: { quantity: number; unit: Unit 
   for (const u of [primary, ...fillers]) {
     if (remaining <= 1e-9) break;
     const { candidate } = u;
-    const packs = Math.min(u.maxPacks, packMath({ quantity: remaining, unit: need.unit }, candidate.pack.packSize, candidate.product.pack.allowedLotSize).packs);
+    const packs = Math.min(u.maxPacks, packMath({ quantity: remaining, unit: need.unit }, candidate.pack.packSize, orderableLot(candidate.product)).packs);
     remaining -= packs * candidate.pack.packSize;
     const isPrimary = u === primary;
     lines.push({

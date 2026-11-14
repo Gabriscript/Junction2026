@@ -31,7 +31,7 @@ describe('planDish', () => {
     expect(plan.source).toBe('table');
     const byName = Object.fromEntries(plan.lines.map((l) => [l.searchText, l.catalogue]));
     expect(byName['spaghetti']).toEqual({ unit: 'KG', quantity: 1 });
-    expect(byName['pesto']).toEqual({ unit: 'KG', quantity: 0.5 });
+    expect(byName['basil pesto']).toEqual({ unit: 'KG', quantity: 0.5 });
     expect(byName['parmigiano']).toEqual({ unit: 'KG', quantity: 0.15 });
     expect(plan.assumptions).toContain('delivery date not given: next available delivery');
     expect(plan.assumptions).toContain('ready-made pesto, not made in house');

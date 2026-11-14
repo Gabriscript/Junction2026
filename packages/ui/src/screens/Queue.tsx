@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GatewayApi } from '../api';
 import type { UiOrder } from '../contract';
-import { eur, Icon, StatusBadge, time, useLive } from '../ui';
-import { Alternatives, Cart, DecisionSummary, ReviewActions } from './OrderParts';
+import { eur, Icon, ReasonChips, StatusBadge, time, useLive } from '../ui';
+import { CompactLines, SignedPriceNote } from './Compact';
+import { ReviewActions } from './OrderParts';
 
 /** Gross EUR, summed in integer cents. */
 const grossOf = (orders: UiOrder[]) => orders.reduce((sum, o) => sum + Math.round(o.totals.gross * 100), 0) / 100;
@@ -111,30 +112,18 @@ export function Queue({ api }: { api: GatewayApi }) {
         </h2>
         {orders && pending.length === 0 && <p className="empty card">Nothing is waiting for approval.</p>}
         {pending.map((order) => (
-          <article key={order.orderId} className="card order-card" aria-labelledby={`title-${order.orderId}`}>
+          <article key={order.orderId} className="card order-card compact" aria-labelledby={`title-${order.orderId}`}>
             <header className="card-head">
-              <div>
-                <h3 id={`title-${order.orderId}`}>{order.buyerName}</h3>
-                <p className="muted">
-                  {order.agentName ?? order.agentId}, order {order.orderId}, {time(order.createdAt)}
-                </p>
-              </div>
+              <h3 id={`title-${order.orderId}`}>{order.buyerName}</h3>
               <StatusBadge status={order.status} />
             </header>
-            <p className="request">
-              <span className="muted">Request</span> {order.requestText}
+            <CompactLines order={order} />
+            <ReasonChips codes={order.decision.reasonCodes} />
+            <SignedPriceNote order={order} />
+            <ReviewActions api={api} order={order} onDone={refresh} />
+            <p className="muted">
+              <a href={`#/orders/${order.orderId}`}>Details and why the agent chose this</a>
             </p>
-            <div className="order-split">
-              <Cart order={order} />
-              <div className="order-decision">
-                <DecisionSummary order={order} withAlternatives={false} />
-                <ReviewActions api={api} order={order} onDone={refresh} />
-                <p>
-                  <a href={`#/orders/${order.orderId}`}>Open decision record for {order.orderId}</a>
-                </p>
-              </div>
-            </div>
-            <Alternatives order={order} wide />
           </article>
         ))}
       </section>

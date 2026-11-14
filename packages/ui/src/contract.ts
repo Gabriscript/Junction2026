@@ -46,6 +46,11 @@ export interface MenuResult {
     orderId?: string;
     product?: string;
     netEur?: number;
+    productId?: string;
+    packs?: number;
+    salesUnit?: string;
+    unitPriceEur?: number;
+    grossEur?: number;
     note: string;
   }>;
 }

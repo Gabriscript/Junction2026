@@ -34,6 +34,13 @@ export function packMath(
   return { packs, packSize, delivered, overshoot, note };
 }
 
+/** Lot size the kitchen can really order: fractions only for products sold by weight or volume (KG, L);
+ *  crates, bags and bottles are bought whole, even when the data allows a fractional lot. */
+export function orderableLot(product: Product): number {
+  const lot = product.pack.allowedLotSize ?? 1;
+  return ['KG', 'L'].includes(String(product.pack.salesUnit)) ? lot : Math.max(1, lot);
+}
+
 /** Net content of one sales unit in `unit` (ML and G scaled to L and KG), or undefined when the product is not measured in it. */
 export function packSizeOf(product: Product, unit: Unit): number | undefined {
   const content = product.pack.netContent;
