@@ -46,3 +46,12 @@ describe('planFill', () => {
     expect(lineCents(14.4, 13.5, 50)).toEqual({ netCents: 72000, grossCents: 81720 });
   });
 });
+
+describe('planFill hardening', () => {
+  it('uses one line per product even if the gateway sends two offers for it', () => {
+    const a = usable('bib', 10, 10.5, 40);
+    const twin = { ...usable('bib', 10, 10.5, 40), candidate: { ...a.candidate, offer: { ...a.candidate.offer, offerId: 'off_twin' } } } as Usable;
+    const plan = planFill([a, twin, usable('case', 12, 14.4, 84)], need, 'any', true)!;
+    expect(plan.map((l) => l.candidate.product.id)).toEqual(['bib', 'case']);
+  });
+});

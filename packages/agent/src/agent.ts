@@ -144,6 +144,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     return { need, ordered: false, status: 'blocked', decision, rejected, trace };
   };
 
+  // shortcut: exact match on the product words ("milk"); an LLM answer like "whole milk" skips the check, match by product id once history is real
   const warning = deps.confirmUnusual ? undefined : unusualQuantity(need, deps.usual?.[need.productQuery]);
   if (warning) {
     step('check_quantity', `${qty(need.quantity)} ${need.unit} of ${need.productQuery}`, warning);
@@ -298,7 +299,10 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     const unverified = plan.some((line) => !line.candidate.offer.quantityVerified);
     const reasonCodes = unverified ? [...new Set<ReasonCode>([...order.decision.reasonCodes, 'UNVERIFIED_STOCK'])] : order.decision.reasonCodes;
     const decision = { status: order.decision.status, reasonCodes };
-    return { need, ordered: decision.status !== 'blocked', status: decision.status, decision, order, chosen, lines: plan, rejected, trace };
+    // a short offer that ended up in the plan was used, not rejected
+    const used = new Set(plan.map((line) => line.candidate.offer.offerId));
+    const stillRejected = rejected.filter((r) => !used.has(r.offerId));
+    return { need, ordered: decision.status !== 'blocked', status: decision.status, decision, order, chosen, lines: plan, rejected: stillRejected, trace };
   } catch (error) {
     step('error', 'gateway call or response', clean(error instanceof Error ? error.message : String(error), 300) || 'unknown error');
     return stop('the run failed: if an order was proposed, its state is unknown');

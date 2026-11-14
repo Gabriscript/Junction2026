@@ -1,5 +1,5 @@
 import type { Mandate, Product } from '@junction/shared';
-import type { Candidate } from './agent.js';
+import { clean, type Candidate } from './agent.js';
 import type { Unit } from './contract.js';
 import { packMath } from './packMath.js';
 
@@ -55,7 +55,10 @@ const perUnit = (c: Candidate) => toCents(c.offer.unitPrice) / c.pack.packSize;
  */
 export function planFill(usable: Usable[], need: { quantity: number; unit: Unit }, policy: Mandate['substitutionPolicy'], strict: boolean): PlanLine[] | undefined {
   const sorted = [...usable].filter((u) => u.maxPacks > 0).sort((a, b) => perUnit(a.candidate) - perUnit(b.candidate));
-  const [primary, ...rest] = sorted;
+  // one line per product: two offers for the same product would count its stock twice
+  const seen = new Set<string>();
+  const unique = sorted.filter((u) => !seen.has(u.candidate.product.id) && seen.add(u.candidate.product.id));
+  const [primary, ...rest] = unique;
   if (!primary) return undefined;
   const fillers = rest.filter((u) => !strict || allowedSubstitute(policy, primary.candidate.product, u.candidate.product));
 
@@ -85,7 +88,7 @@ export function reasonFor(primary: Usable, substitute: Candidate, packs: number,
   const delta = Math.round((perUnit(substitute) / perUnit(original) - 1) * 100);
   const attributes = substitute.product.attributes.join(', ');
   return (
-    `only ${primary.maxPacks} of ${original.pack.packs} packs of ${original.product.name} available → added ${packs} × ${substitute.product.name}, ` +
+    `only ${primary.maxPacks} of ${original.pack.packs} packs of ${clean(original.product.name)} available → added ${packs} × ${clean(substitute.product.name)}, ` +
     `${allowed ? POLICY_WORDS[policy] : `outside the mandate policy (${POLICY_WORDS[policy]}), needs approval`}` +
     `${attributes ? `, ${attributes}` : ''}, ${delta >= 0 ? '+' : ''}${delta} % per ${unit}`
   );
