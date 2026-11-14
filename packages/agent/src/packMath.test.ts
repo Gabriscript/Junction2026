@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '@junction/shared';
 import { milkLactoseFree } from '@junction/shared/fixtures';
-import { packMath, packSizeOf } from './packMath.js';
+import { packMath, packSizeOf, orderableLot } from './packMath.js';
 
 describe('packMath', () => {
   it('exact fit shows no overshoot', () => {
@@ -24,6 +24,14 @@ describe('packMath', () => {
   it('handles fractional lots without float noise', () => {
     expect(packMath({ quantity: 2.5, unit: 'KG' }, 1, 0.01)).toMatchObject({ packs: 2.5, delivered: 2.5, overshoot: 0 });
     expect(packMath({ quantity: 0.3, unit: 'KG' }, 0.1, 1)).toMatchObject({ packs: 3, overshoot: 0 });
+  });
+
+  it('orders crates and bags whole, weight products by fraction', () => {
+    const crate = { pack: { salesUnit: 'KI', allowedLotSize: 0.01 } } as never;
+    const byKg = { pack: { salesUnit: 'KG', allowedLotSize: 0.01 } } as never;
+    expect(orderableLot(crate)).toBe(1);
+    expect(orderableLot(byKg)).toBe(0.01);
+    expect(packMath({ quantity: 0.5, unit: 'KG' }, 0.78, orderableLot(crate)).packs).toBe(1);
   });
 
   it('uses the singular for one pack', () => {

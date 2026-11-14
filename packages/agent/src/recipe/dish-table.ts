@@ -57,7 +57,7 @@ export const DISH_TABLE: Entry[] = [
       dish: 'fusilli al pesto',
       ingredients: [
         { name: 'fusilli', searchText: 'fusilli', kind: 'pasta_rice_grain', category: '21380', perServing: 100, unit: 'g', attributes: [], optional: false },
-        { name: 'pesto alla genovese', searchText: 'pesto', kind: 'sauce', category: '21917', perServing: 50, unit: 'g', attributes: [], optional: false },
+        { name: 'pesto alla genovese', searchText: 'basil pesto', kind: 'sauce', category: '21917', perServing: 50, unit: 'g', attributes: [], optional: false },
         { name: 'parmigiano reggiano (block, grated in the kitchen)', searchText: 'parmigiano', kind: 'cheese', category: '10600', perServing: 15, unit: 'g', attributes: [], optional: false },
       ],
       assumptions: ['ready-made pesto, not made in house'],
@@ -73,7 +73,7 @@ export const DISH_TABLE: Entry[] = [
       dish: 'spaghetti al pesto',
       ingredients: [
         { name: 'spaghetti', searchText: 'spaghetti', kind: 'pasta_rice_grain', perServing: 100, unit: 'g', attributes: [], optional: false },
-        { name: 'pesto alla genovese', searchText: 'pesto', kind: 'sauce', category: '21917', perServing: 50, unit: 'g', attributes: [], optional: false },
+        { name: 'pesto alla genovese', searchText: 'basil pesto', kind: 'sauce', category: '21917', perServing: 50, unit: 'g', attributes: [], optional: false },
         { name: 'parmigiano reggiano (block, grated in the kitchen)', searchText: 'parmigiano', kind: 'cheese', category: '10600', perServing: 15, unit: 'g', attributes: [], optional: false },
         { name: 'basilico fresco', searchText: 'basil', kind: 'herb_spice', perServing: 2, unit: 'g', attributes: [], optional: true },
       ],

@@ -60,6 +60,12 @@ export interface MenuLineResult {
   netEur?: number;
   /** Last trace step, human readable: why the agent stopped or what it chose. */
   note: string;
+  /** The ordered product as Valio Aimo signed it: id (for the photo), sales units, unit price, total incl. VAT. */
+  productId?: string;
+  packs?: number;
+  salesUnit?: string;
+  unitPriceEur?: number;
+  grossEur?: number;
   /** Offers the agent turned down (e.g. a product that cannot be delivered in time), with the reason code. */
   rejected: Array<{ productId: string; reasonCode: string }>;
 }
@@ -85,6 +91,15 @@ function summarise(line: MenuLine, result: AgentResult): MenuLineResult {
     reasonCodes: [...result.decision.reasonCodes],
     ...(result.order ? { orderId: result.order.orderId, netEur: result.order.totals.net } : {}),
     ...(result.chosen ? { product: result.chosen.product.name } : {}),
+    ...(result.order?.lines[0]
+      ? {
+          productId: result.order.lines[0].productId,
+          packs: result.order.lines.reduce((n, l) => n + l.quantity, 0),
+          salesUnit: result.order.lines[0].unit,
+          unitPriceEur: result.order.lines[0].unitPrice,
+          grossEur: result.order.totals.gross,
+        }
+      : {}),
     note: last ? `${last.action}: ${last.output}` : '',
     rejected: result.rejected.map((r) => ({ productId: r.productId, reasonCode: r.reasonCode })),
   };

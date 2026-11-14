@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react';
 import type { ReasonCode } from '@junction/shared';
 import type { GatewayApi } from '../api';
 import type { MenuResult, UiOrder } from '../contract';
+import { UNIT_CODE_NAMES } from '@junction/shared';
 import { eur, ReasonChips, StatusBadge, whyText } from '../ui';
+import { ProductPhoto } from './Compact';
 
 const LINE_STATUS: Record<MenuResult['lines'][number]['status'], { label: string; tone: 'ok' | 'warn' | 'stop' }> = {
   auto_approved: { label: 'Ordered', tone: 'ok' },
@@ -10,6 +12,48 @@ const LINE_STATUS: Record<MenuResult['lines'][number]['status'], { label: string
   blocked: { label: 'Blocked', tone: 'stop' },
   not_ordered: { label: 'Not ordered', tone: 'stop' },
 };
+
+const packsText = (n: number, unit?: string) =>
+  `${n.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} ${(unit && UNIT_CODE_NAMES[unit as keyof typeof UNIT_CODE_NAMES]) ?? unit ?? ''}`.trim();
+
+/** What Valio Aimo will deliver from this request: ordered lines with photo, packs × signed price and total. */
+function WhatWasOrdered({ lines }: { lines: MenuResult['lines'] }) {
+  const ordered = lines.filter((l) => l.status === 'auto_approved' && l.grossEur !== undefined);
+  const waiting = lines.filter((l) => l.status === 'needs_approval' && l.grossEur !== undefined);
+  if (ordered.length + waiting.length === 0) return null;
+  const sum = (ls: typeof lines) => ls.reduce((n, l) => n + (l.grossEur ?? 0), 0);
+  const row = (l: MenuResult['lines'][number]) => (
+    <li key={`${l.orderId}-${l.name}`} className="compact-line">
+      <ProductPhoto productId={l.productId} name={l.product ?? l.name} />
+      <div className="compact-text">
+        <strong>{l.product}</strong>
+        <span className="muted">
+          {packsText(l.packs ?? 0, l.salesUnit)} × {eur(l.unitPriceEur ?? 0)} · for {l.name}
+        </span>
+      </div>
+      <span className="compact-price">{eur(l.grossEur ?? 0)}</span>
+    </li>
+  );
+  return (
+    <section className="card" aria-labelledby="ordered-h">
+      <h2 id="ordered-h">What was ordered</h2>
+      <ul className="compact-lines">{ordered.map(row)}</ul>
+      <p className="ordered-total">
+        <span>Ordered, incl. VAT</span> <strong>{eur(sum(ordered))}</strong>
+      </p>
+      {waiting.length > 0 && (
+        <>
+          <h3>Waiting for your OK</h3>
+          <ul className="compact-lines">{waiting.map(row)}</ul>
+          <p className="ordered-total">
+            <span>If approved, incl. VAT</span> <strong>{eur(sum(waiting))}</strong>
+          </p>
+        </>
+      )}
+      <p className="muted signed-note">✓ Fixed prices from offers signed by Valio Aimo</p>
+    </section>
+  );
+}
 
 const COURSE: Record<string, string> = { appetizer: 'Appetizer', main: 'Main', dessert: 'Dessert' };
 
@@ -67,12 +111,15 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
             return (
               <li key={l.name} className="menu-line">
                 <div className="menu-line-head">
-                  <strong>{l.name}</strong>
+                  <ProductPhoto productId={l.productId} name={l.product ?? l.name} size={48} />
+                  <strong className="menu-line-name">{l.name}</strong>
                   <span className="qty">{qty(l.quantity, l.unit)}</span>
                 </div>
                 <p className="muted">
                   {l.product ?? 'No suitable product'}
-                  {l.netEur !== undefined && <> · {eur(l.netEur)} excl. VAT</>}
+                  {l.packs !== undefined && l.unitPriceEur !== undefined && (
+                    <> · {packsText(l.packs, l.salesUnit)} × {eur(l.unitPriceEur)}</>
+                  )}
                 </p>
                 <span className={`badge tone-${s.tone}`}>{s.label}</span>
                 <ReasonChips codes={l.reasonCodes as ReasonCode[]} />
@@ -94,6 +141,8 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
           </p>
         )}
       </section>
+
+      <WhatWasOrdered lines={lines} />
     </>
   );
 }

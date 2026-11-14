@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { StructuredNeed } from './contract.js';
 import { parseOutput, type GatewayClient } from './gateway-client.js';
 import { addDays, extractNeed, todayIso, type LLMProvider } from './llm.js';
-import { packMath, packSizeOf, type PackPlan } from './packMath.js';
+import { orderableLot, packMath, packSizeOf, type PackPlan } from './packMath.js';
 import { lineCents, planFill, toCents, type PlanLine, type Usable } from './substitute.js';
 import { offerIsCurrent, verifyOffer, type Trust } from './verify.js';
 import { qty, unusualQuantity, type Usual } from './quantity.js';
@@ -156,7 +156,7 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     if (!shortlist.length) return stop('no matching product');
 
     // get_offers quotes sales units, so the pack math runs per product before asking
-    const packs = new Map(shortlist.map((product) => [product.id, packMath(need, packSizeOf(product, need.unit)!, product.pack.allowedLotSize)]));
+    const packs = new Map(shortlist.map((product) => [product.id, packMath(need, packSizeOf(product, need.unit)!, orderableLot(product))]));
     // shortcut: a request without a date asks for tomorrow, the earliest a kitchen order is normally delivered
     const requestedDate = need.deliveryBy ?? addDays(todayIso(now()), 1);
     const { agentId, customerRef } = deps.mandate;

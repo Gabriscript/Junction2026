@@ -129,10 +129,10 @@ export function App({ api }: { api: GatewayApi }) {
 
         <div className="frame">
           <header className="topbar">
-            <p className="brand brand-top">
+            <a className="brand brand-top" href="/shop.html" aria-label="Back to the Valio Aimo webshop">
               <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
               <span className="brand-name">Trusted Trade</span>
-            </p>
+            </a>
             <p className="crumbs">
               {orderId ? (
                 <>
