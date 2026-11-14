@@ -8,10 +8,12 @@
     "gateway": {
       "root": "deploy/gateway/",
       "framework": "fastify",
+      "buildCommand": "npm run vercel-build",
       "entrypoint": "index.cjs"
     },
     "assistant": {
       "root": "deploy/assistant/",
+      "buildCommand": "npm run vercel-build",
       "entrypoint": "index.cjs",
       "bindings": [
         { "type": "service", "service": "gateway", "format": "url", "env": "GATEWAY_URL" }
