@@ -5,8 +5,10 @@
  *
  * Buyer side only: it talks to the Valio Aimo gateway over its public REST API, exactly like any
  * outside agent would. Endpoints used by packages/ui (via the Vite dev proxy):
- *   POST /api/menu      { text }  → { plan, lines[] }   plan + one decision per ingredient
- *   POST /api/requests  { text }  → Order               most relevant order (for the old single-order UI)
+ *   POST /api/menu      { text, acceptSubstitutes? } → { plan, lines[] }   plan + one decision per ingredient; with
+ *                       acceptSubstitutes: false a cart with a substitute comes back as { status: 'substitute_proposed', text, preview }
+ *   POST /api/requests  { text, acceptSubstitutes? } → Order (most relevant one), or, while a substitute is not
+ *                       accepted, { status: 'substitute_proposed', text, preview } with nothing placed
  *   GET  /api/orders              → Order[]             this kitchen's orders (gateway /v1/orders)
  *   GET  /api/audit?scope=…       → AuditEvent[]        buyer or Aimo view (gateway /v1/audit)
  *   GET  /api/events              → SSE                 live audit events, unnamed frames for EventSource
@@ -18,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { SubstitutionPolicySchema, type Mandate, type Order } from '@junction/shared';
 import { hotelMandate } from '@junction/shared/fixtures';
-import { runAgent, type AgentResult } from '../agent.js';
+import { runAgent, type AgentResult, type SubstitutePreview } from '../agent.js';
 import { HttpGateway } from '../http-client.js';
 import { addDays, createProvider, GEMINI_DEFAULT_MODEL, todayIso } from '../llm.js';
 import { planMenu, RecipeError, type MenuLine, type MenuPlan } from '../recipe/index.js';
@@ -160,7 +162,11 @@ function singleLinePlan(text: string, neededBy: string | null): MenuPlan {
   };
 }
 
-async function planAndOrder(text: string, context: { neededBy?: string | null } = {}): Promise<{ plan: MenuPlan; lines: MenuLineResult[]; orders: Order[] }> {
+async function planAndOrder(
+  text: string,
+  context: { neededBy?: string | null } = {},
+  acceptSubstitutes = true,
+): Promise<{ plan: MenuPlan; lines: MenuLineResult[]; orders: Order[]; preview?: SubstitutePreview }> {
   let plan: MenuPlan;
   let single = false;
   try {
@@ -177,10 +183,8 @@ async function planAndOrder(text: string, context: { neededBy?: string | null } 
   const date = plan.neededBy ?? addDays(todayIso(new Date()), 1);
   const lines: MenuLineResult[] = [];
   const orders: Order[] = [];
-  // one ingredient at a time: keeps the gateway's query budget and the audit trail in a readable order
-  for (const line of plan.lines) {
-    const request = single ? `${line.searchText} by ${date}` : lineText(line, date);
-    const result = await runAgent(request, {
+  const run = (line: MenuLine, previewOnly = false) =>
+    runAgent(single ? `${line.searchText} by ${date}` : lineText(line, date), {
       llm,
       gateway,
       now: () => new Date(),
@@ -188,7 +192,29 @@ async function planAndOrder(text: string, context: { neededBy?: string | null } 
       mandate: bistroMandate,
       ...(line.category ? { category: line.category } : {}),
       confirmUnusual: true, // a menu sets its own quantities; there is no order history for this kitchen
+      acceptSubstitutes,
+      previewOnly,
     });
+  // the chef decides once for the whole request: every line is planned before any is placed
+  // shortcut: this doubles the gateway offer queries of a request; fine within the demo's 500/hour budget
+  if (!acceptSubstitutes) {
+    const previews: SubstitutePreview[] = [];
+    for (const line of plan.lines) {
+      const { preview } = await run(line, true);
+      if (preview) previews.push(preview);
+    }
+    if (previews.some((p) => p.lines.some((l) => l.substituteFor))) {
+      const preview = {
+        lines: previews.flatMap((p) => p.lines),
+        reason: previews.map((p) => p.reason).filter(Boolean).join('\n'),
+        grossEur: Math.round(previews.reduce((n, p) => n + p.grossEur * 100, 0)) / 100,
+      };
+      return { plan, lines, orders, preview };
+    }
+  }
+  // one ingredient at a time: keeps the gateway's query budget and the audit trail in a readable order
+  for (const line of plan.lines) {
+    const result = await run(line);
     lines.push(summarise(line, result));
     if (result.order) orders.push(result.order);
   }
@@ -330,7 +356,11 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       const ctx = typeof body === 'object' && body && 'neededBy' in body ? String((body as { neededBy: unknown }).neededBy) : null;
       const neededBy = ctx && /^\d{4}-\d{2}-\d{2}$/.test(ctx) ? ctx : null;
-      const { plan, lines } = await planAndOrder(textOf(body), { neededBy });
+      const text = textOf(body);
+      // default true keeps old clients unchanged; the New order screen sends false first so the chef sees a substitute before it is ordered
+      const accept = (body as { acceptSubstitutes?: unknown }).acceptSubstitutes !== false;
+      const { plan, lines, preview } = await planAndOrder(text, { neededBy }, accept);
+      if (preview) return send(res, 200, { status: 'substitute_proposed', text, preview });
       return send(res, 200, { plan, lines });
     }
     if (req.method === 'POST' && url.pathname === '/api/scan') {
@@ -338,7 +368,12 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { text });
     }
     if (req.method === 'POST' && url.pathname === '/api/requests') {
-      const { orders } = await planAndOrder(textOf(await readJson(req)));
+      const body = await readJson(req);
+      const text = textOf(body);
+      const accept = (body as { acceptSubstitutes?: unknown }).acceptSubstitutes === true;
+      const { orders, preview } = await planAndOrder(text, {}, accept);
+      // nothing placed: the chef sees the substitute first and re-POSTs with acceptSubstitutes: true
+      if (preview) return send(res, 200, { status: 'substitute_proposed', text, preview });
       const pick = orders.find((o) => o.status === 'pending_approval') ?? orders.find((o) => o.decision.status === 'blocked') ?? orders[0];
       if (!pick) throw new HttpError(422, 'the agent could not place any order for this request');
       return send(res, 200, pick);

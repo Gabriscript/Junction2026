@@ -52,6 +52,18 @@ export interface AgentDeps {
   usual?: Record<string, Usual>;
   /** The chef confirmed a quantity far above the usual one. */
   confirmUnusual?: boolean;
+  /** The chef accepted the substitutes. Without it a plan with a substitute stops before propose_order and returns `preview`. */
+  acceptSubstitutes?: boolean;
+  /** Stop before propose_order and return `preview` even without a substitute (the assistant server checks a whole request first). */
+  previewOnly?: boolean;
+}
+
+/** The cart the agent would order, shown to the chef before anything is placed. Money in EUR. */
+export interface SubstitutePreview {
+  lines: Array<{ productId: string; productName: string; packs: number; unitPrice: number; grossEur: number; substituteFor: string | null }>;
+  /** Why each substitute was added, one line per substitute. */
+  reason: string;
+  grossEur: number;
 }
 
 export interface AgentResult {
@@ -68,6 +80,8 @@ export interface AgentResult {
   trace: TraceStep[];
   /** Questions for the chef before anything is ordered, e.g. a quantity far above the usual one. */
   warnings?: string[];
+  /** Set when the run stopped before propose_order for the chef to see the cart (a substitute not yet accepted, or previewOnly). */
+  preview?: SubstitutePreview;
 }
 
 const SHORTLIST_SIZE = 5;
@@ -259,6 +273,23 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     if (!(grossCents <= capCents)) {
       rejected.push({ ...label(chosen), reasonCode: 'OVER_BUDGET' });
       return stop(`${eur(grossCents)} incl. VAT is above the mandate budget of ${eur(capCents)}`);
+    }
+
+    // a substitute the chef has not seen is never ordered: show the cart first
+    if (deps.previewOnly || (!deps.acceptSubstitutes && plan.some((line) => line.substituteFor))) {
+      const preview: SubstitutePreview = {
+        lines: plan.map((line) => ({
+          productId: line.candidate.product.id,
+          productName: clean(line.candidate.product.name),
+          packs: line.packs,
+          unitPrice: line.candidate.offer.unitPrice,
+          grossEur: line.grossCents / 100,
+          substituteFor: line.substituteFor,
+        })),
+        reason: plan.flatMap((line) => (line.reason ? [clean(line.reason, 300)] : [])).join('\n'),
+        grossEur: grossCents / 100,
+      };
+      return { ...stop('waiting for the chef to see the cart and accept the substitute'), chosen, lines: plan, preview };
     }
 
     const lines = plan.map((line) => ({ offerId: line.candidate.offer.offerId, offerJws: line.candidate.jws, quantity: line.packs, substituteFor: line.substituteFor }));

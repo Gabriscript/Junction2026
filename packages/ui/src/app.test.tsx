@@ -289,7 +289,7 @@ test("the view switch hides other buyers' orders in Kitchen and shows them all i
 
   fireEvent.click(screen.getByRole('button', { name: 'Valio Aimo' }));
   expect(await screen.findByRole('heading', { name: 'All orders' })).toBeTruthy();
-  expect(screen.getByRole('link', { name: /Harbour Hotel/ })).toBeTruthy();
+  expect(await screen.findByRole('link', { name: /Harbour Hotel/ })).toBeTruthy(); // rows load after the heading
   expect(screen.getByRole('link', { name: 'Why order ord-1003 is blocked' })).toBeTruthy();
   // Valio Aimo waits on the buyer; "Needs your OK" is the chef's wording
   expect(screen.getByRole('link', { name: 'Why order ord-1002 is pending approval' }).textContent).toBe('Awaiting buyer');

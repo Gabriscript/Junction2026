@@ -13,6 +13,21 @@ import { hashEvent } from './hash';
 import { auroraOrder, eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, tourOrder, weekOrder, type SeedEvent } from './mockData';
 import type { WeekOrder } from './kitchen';
 
+/** The cart Mikko would order, shown before anything is placed (assistant server and mock). Money in EUR. */
+export interface SubstitutePreview {
+  lines: Array<{ productId: string; productName: string; packs: number; unitPrice: number; grossEur: number; substituteFor: string | null }>;
+  /** Why each substitute was added, one line per substitute. */
+  reason: string;
+  grossEur: number;
+}
+
+/** Answer of POST /api/menu or /api/requests with acceptSubstitutes: false when the cart has a substitute: nothing was placed. */
+export interface SubstituteProposal {
+  status: 'substitute_proposed';
+  text: string;
+  preview: SubstitutePreview;
+}
+
 export interface GatewayApi {
   listOrders(): Promise<UiOrder[]>;
   getOrder(orderId: string): Promise<UiOrder>;
@@ -27,6 +42,8 @@ export interface GatewayApi {
   submitWeek(lines: WeekOrder[], text: string): Promise<UiOrder>;
   /** Whole menu → plan + one decision per ingredient (assistant server only; the mock has none). */
   planMenu?(text: string, context?: { neededBy?: string | null }): Promise<MenuResult>;
+  /** Like planMenu, but a cart with a substitute comes back as a proposal and nothing is ordered until the chef accepts (planMenu). */
+  proposeMenu?(text: string): Promise<MenuResult | SubstituteProposal>;
   /** Photo or PDF (base64) → the text on it (assistant server: Claude reads the note). */
   scan?(base64: string, mediaType: 'image/jpeg' | 'application/pdf'): Promise<string>;
 }
@@ -82,7 +99,8 @@ export class HttpGatewayApi implements GatewayApi {
     return AuditEventSchema.array().parse(await this.call('GET', `/api/audit?scope=${scope}`));
   }
   async submitRequest(text: string) {
-    return OrderSchema.parse(await this.call('POST', '/api/requests', { text }));
+    // the server proposes substitutes first unless told otherwise; callers of submitRequest order as before
+    return OrderSchema.parse(await this.call('POST', '/api/requests', { text, acceptSubstitutes: true }));
   }
   // The real agent parses the confirmed read-back itself, so the lines are not sent.
   submitWeek(_lines: WeekOrder[], text: string) {
@@ -94,6 +112,9 @@ export class HttpGatewayApi implements GatewayApi {
   }
   async planMenu(text: string, context: { neededBy?: string | null } = {}) {
     return (await this.call('POST', '/api/menu', { text, neededBy: context.neededBy ?? null })) as MenuResult;
+  }
+  async proposeMenu(text: string) {
+    return (await this.call('POST', '/api/menu', { text, neededBy: null, acceptSubstitutes: false })) as MenuResult | SubstituteProposal;
   }
 
   subscribe(onEvent: (event: AuditEvent) => void) {

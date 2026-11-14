@@ -355,7 +355,7 @@ describe('step 8: substitutes and partial fill', () => {
   it('fills a short cheapest product with an allowed substitute, with a reason per line', async () => {
     const gateway = new MockGateway({ now: () => NOW });
     const propose = vi.spyOn(gateway, 'propose_order');
-    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { ...hotelMandate, substitutionPolicy: 'same_category' } });
+    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { ...hotelMandate, substitutionPolicy: 'same_category' }, acceptSubstitutes: true });
 
     expect(result.lines?.map((l) => [l.candidate.product.id, l.packs, l.substituteFor])).toEqual([[P.lfBib10, 40, null], [P.lfCase12, 50, P.lfBib10]]);
     expect(result.decision).toEqual({ status: 'auto_approved', reasonCodes: [] });
@@ -373,10 +373,30 @@ describe('step 8: substitutes and partial fill', () => {
 
   it('when nothing covers the need alone, proposes the split anyway and the gateway asks a human', async () => {
     const gateway = new MockGateway({ now: () => NOW, stock: { [P.lfCase12]: 30, [P.lf1l]: 300 } });
-    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { ...hotelMandate, substitutionPolicy: 'none' } });
+    const result = await runAgent(DEMO, { ...(await deps(gateway)), mandate: { ...hotelMandate, substitutionPolicy: 'none' }, acceptSubstitutes: true });
     expect(result.lines?.map((l) => [l.candidate.product.id, l.packs])).toEqual([[P.lfBib10, 40], [P.lfCase12, 30], [P.lf1l, 240]]);
     expect(result.decision).toEqual({ status: 'needs_approval', reasonCodes: ['SUBSTITUTION_OUTSIDE_PREFS'] });
     expect(result.lines?.[1]?.reason).toContain('outside the mandate policy');
+  });
+
+  it('never orders a substitute the chef has not seen: preview first, propose_order only after acceptSubstitutes', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const propose = vi.spyOn(gateway, 'propose_order');
+    const mandate = { ...hotelMandate, substitutionPolicy: 'same_category' as const };
+    const proposed = await runAgent(DEMO, { ...(await deps(gateway)), mandate });
+
+    expect(propose).not.toHaveBeenCalled();
+    expect(proposed.ordered).toBe(false);
+    expect(proposed.order).toBeUndefined();
+    expect(proposed.preview?.lines.map((l) => [l.productId, l.packs, l.substituteFor])).toEqual([[P.lfBib10, 40, null], [P.lfCase12, 50, P.lfBib10]]);
+    expect(proposed.preview?.lines.every((l) => l.productName && l.unitPrice > 0 && l.grossEur > 0)).toBe(true);
+    expect(proposed.preview?.grossEur).toBe((47670 + 81720) / 100);
+    expect(proposed.preview?.reason).toContain('only 40 of 100 packs');
+
+    const accepted = await runAgent(DEMO, { ...(await deps(gateway)), mandate, acceptSubstitutes: true });
+    expect(propose).toHaveBeenCalledTimes(1);
+    expect(accepted.ordered).toBe(true);
+    expect(accepted.preview).toBeUndefined();
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { ReasonCode } from '@junction/shared';
-import { MockGatewayApi, type GatewayApi } from '../api';
+import { MockGatewayApi, type GatewayApi, type SubstitutePreview } from '../api';
 import type { MenuResult, UiOrder } from '../contract';
 import { UNIT_CODE_NAMES } from '@junction/shared';
 import { history, parLevels, parseMessage, reviewWeek } from '../kitchen';
@@ -138,11 +138,17 @@ function MenuPlanView({ result, title }: { result: MenuResult; title?: string })
   );
 }
 
+const toPreview = (order: UiOrder): SubstitutePreview => ({
+  lines: order.lines.map((l) => ({ productId: l.productId, productName: l.productName, packs: l.quantity, unitPrice: l.unitPrice, grossEur: l.totals.gross, substituteFor: l.substituteFor })),
+  reason: [...substituteReasons(order).values()].join('\n'),
+  grossEur: order.totals.gross,
+});
+
 /** A product is short: Mikko shows the substitute (photo, reason, price) and orders only after the chef accepts. */
-function SubstituteOffer({ order, onAccept, onWait }: { order: UiOrder; onAccept: () => void; onWait: () => void }) {
-  const sub = order.lines.find((l) => l.substituteFor)!;
-  const short = order.lines.find((l) => l.productId === sub.substituteFor)?.productName ?? `Product ${sub.substituteFor}`;
-  const [reason, calc] = firstSentence(substituteReasons(order).get(sub.lineId) ?? 'Same category, allowed by your mandate.');
+function SubstituteOffer({ preview, onAccept, onWait }: { preview: SubstitutePreview; onAccept: () => void; onWait: () => void }) {
+  const sub = preview.lines.find((l) => l.substituteFor)!;
+  const short = preview.lines.find((l) => l.productId === sub.substituteFor)?.productName ?? `Product ${sub.substituteFor}`;
+  const [reason, calc] = firstSentence(preview.reason.split('\n')[0] || 'Same category, allowed by your mandate.');
   return (
     <section className="card sub-offer" aria-labelledby="sub-h" data-tour="substitute">
       <h2 id="sub-h">{short} is running short</h2>
@@ -152,10 +158,10 @@ function SubstituteOffer({ order, onAccept, onWait }: { order: UiOrder; onAccept
           <div className="compact-text">
             <strong>{sub.productName}</strong>
             <span className="muted">
-              {sub.quantity} × {eur(sub.unitPrice)}
+              {sub.packs} × {eur(sub.unitPrice)}
             </span>
           </div>
-          <span className="compact-price">{eur(sub.totals.gross)}</span>
+          <span className="compact-price">{eur(sub.grossEur)}</span>
         </li>
       </ul>
       <p>{reason}</p>
@@ -188,7 +194,8 @@ export function RequestForm({ api, tour }: { api: GatewayApi; tour?: Pick<TourSt
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string>();
   const [flag, setFlag] = useState<ReturnType<typeof unusual>>();
-  const [proposal, setProposal] = useState<{ text: string; order: UiOrder }>();
+  // menu: proposed by the assistant server's /api/menu (accept re-plans with substitutes allowed); else the mock's cart
+  const [proposal, setProposal] = useState<{ text: string; preview: SubstitutePreview; menu: boolean }>();
   const [note, setNote] = useState<string>();
 
   const run = async (job: () => Promise<void>) => {
@@ -214,7 +221,7 @@ export function RequestForm({ api, tour }: { api: GatewayApi; tour?: Pick<TourSt
     const slip = checked ? undefined : unusual(t);
     const draft = !slip && api instanceof MockGatewayApi ? await api.preview(t) : undefined;
     if (slip) setFlag(slip);
-    else if (draft?.lines.some((l) => l.substituteFor)) setProposal({ text: t, order: draft });
+    else if (draft?.lines.some((l) => l.substituteFor)) setProposal({ text: t, preview: toPreview(draft), menu: false });
     else setOrder(await api.submitRequest(t));
   };
 
@@ -225,7 +232,12 @@ export function RequestForm({ api, tour }: { api: GatewayApi; tour?: Pick<TourSt
       return;
     }
     const t = text.trim();
-    await run(async () => (api.planMenu ? setResults([await api.planMenu(t)]) : place(t)));
+    await run(async () => {
+      if (!api.proposeMenu) return place(t);
+      const r = await api.proposeMenu(t);
+      if ('status' in r) setProposal({ text: t, preview: r.preview, menu: true });
+      else setResults([r]);
+    });
   };
 
   // Runs once: App remounts this form for every tour step, so each step starts from a clean screen.
@@ -294,8 +306,10 @@ export function RequestForm({ api, tour }: { api: GatewayApi; tour?: Pick<TourSt
         )}
         {proposal && (
           <SubstituteOffer
-            order={proposal.order}
-            onAccept={() => void run(async () => setOrder(await api.submitRequest(proposal.text)))}
+            preview={proposal.preview}
+            onAccept={() =>
+              void run(async () => (proposal.menu && api.planMenu ? setResults([await api.planMenu(proposal.text)]) : setOrder(await api.submitRequest(proposal.text))))
+            }
             onWait={() => {
               setProposal(undefined);
               setNote('Nothing ordered. Ask Mikko again when the stock is back.');
