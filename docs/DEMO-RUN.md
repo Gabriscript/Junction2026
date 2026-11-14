@@ -41,3 +41,5 @@ Stop the gateway (only the listener: `lsof -ti tcp:8787 -sTCP:LISTEN | xargs kil
 ## Known limits (for Gabri)
 - The agent can order fractions of a sales unit (e.g. 0.11 crate) when the product's lot size allows it; real kitchens would round up to whole packs. Worth a rule in pack math.
 - Products without net-content data (e.g. grated parmesan 1 kg, Saclà pesto 950 g) can't be pack-planned, so the recipe uses categories where such data exists (parmesan blocks).
+
+Deploying on Vercel (web + gateway + assistant services): see [DEPLOY-VERCEL.md](DEPLOY-VERCEL.md).

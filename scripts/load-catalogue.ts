@@ -14,7 +14,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { aimoApiConfig, CATALOGUE_DB_PATH, RAW_DATA_DIR } from '../packages/gateway/src/config.js';
 import { isFood, parseProductCsv, projectProduct, type RawProduct } from '../packages/gateway/src/catalogue/project.js';
 import { openCatalogueDb, SqliteCatalogue } from '../packages/gateway/src/catalogue/store.js';
@@ -81,6 +81,7 @@ function main(): void {
   rmSync(CATALOGUE_DB_PATH, { force: true });
   rmSync(`${CATALOGUE_DB_PATH}-wal`, { force: true });
   rmSync(`${CATALOGUE_DB_PATH}-shm`, { force: true });
+  mkdirSync(dirname(CATALOGUE_DB_PATH), { recursive: true });
   const db = openCatalogueDb(CATALOGUE_DB_PATH);
   const cat = new SqliteCatalogue(db);
   const n = cat.replaceAll(products, { source: 'portal', rawProducts: String(raw.length) });
@@ -90,6 +91,8 @@ function main(): void {
 
   const sample = cat.search({ text: 'lactose free milk', limit: 5 });
   console.log(`  smoke: "lactose free milk" → ${sample.products.length} hits, e.g. ${sample.products.map((p) => `${p.id} ${p.name}`).slice(0, 3).join(' | ')}`);
+  // one self-contained file (no -wal/-shm): it must open read-only on a read-only filesystem (Vercel functions)
+  db.exec('PRAGMA journal_mode = DELETE');
   db.close();
   console.log(`done in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 }

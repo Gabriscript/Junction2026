@@ -7,7 +7,7 @@
  */
 import { appendFileSync, existsSync } from 'node:fs';
 import { calculateJwkThumbprint, exportJWK, generateKeyPair, importJWK, type CryptoKey, type JWK } from 'jose';
-import { ENV_FILE, optionalEnv } from '../config.js';
+import { ConfigError, ENV_FILE, ON_VERCEL, optionalEnv } from '../config.js';
 
 export const SIGNING_ALG = 'ES256';
 
@@ -67,6 +67,8 @@ export async function loadSigningKey(opts: LoadKeyOptions = {}): Promise<Signing
     if (!isPrivateEcJwk(parsed)) throw new Error(`${envVar} must be a private EC P-256 JWK`);
     return fromPrivateJwk(parsed);
   }
+  // every Vercel instance would sign with its own throwaway key: the key must come from the project's env vars
+  if (ON_VERCEL) throw new ConfigError(`Missing ${envVar}. Set it in the Vercel project's environment variables (a private EC P-256 JWK).`);
   const { key, privateJwk } = await generateSigningKey();
   const envFile = opts.envFile === undefined ? ENV_FILE : opts.envFile;
   if (envFile) {

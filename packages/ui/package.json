@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "dev:live": "VITE_GATEWAY_URL=/ vite --host 0.0.0.0",
-    "dev:https": "HTTPS=1 VITE_GATEWAY_URL=/ vite --host 0.0.0.0"
+    "dev:https": "HTTPS=1 VITE_GATEWAY_URL=/ vite --host 0.0.0.0",
+    "vercel-build": "npm run build:shared --prefix ../.. && VITE_GATEWAY_URL=/ npm run build"
   },
   "dependencies": {
     "@junction/shared": "*",
