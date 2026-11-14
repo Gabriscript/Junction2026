@@ -68,7 +68,7 @@ export function DecisionSummary({ order, withAlternatives = true }: { order: UiO
     <>
       <ReasonChips codes={order.decision.reasonCodes} />
       <details className="more">
-        <summary>Why the agent chose this</summary>
+        <summary>Why Mikko chose this</summary>
         {whyText(order).map((text, i) => (
           <p key={i} className="why">
             {text}

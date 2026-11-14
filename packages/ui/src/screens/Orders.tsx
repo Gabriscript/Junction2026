@@ -4,6 +4,7 @@ import type { GatewayApi } from '../api';
 import { history, isoWeek, KITCHEN, parLevels, THIS_MONDAY, yearHistory } from '../kitchen';
 import { DEMO_UNIT_PRICES, FALLBACK_UNIT_PRICE } from '../mockData';
 import { eur, Icon, StatusBadge, time, useLive } from '../ui';
+import { Autopilot } from './Autopilot';
 
 const AURORA = '300'; // the signed-in kitchen's customerRef in the demo data
 const pars = [...parLevels(history)].sort(([, a], [, b]) => a.every - b.every || b.median - a.median);
@@ -113,6 +114,8 @@ export function Orders({ api }: { api: GatewayApi }) {
           Could not load orders. {error}
         </p>
       )}
+
+      <Autopilot api={api} />
 
       <div className="dash-grid">
         <section className="stat stat-main" aria-labelledby="due-title">

@@ -1,8 +1,8 @@
 // Compact product lines with photo and price: the short approval card and "What was ordered".
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { UNIT_CODE_NAMES } from '@junction/shared';
 import type { UiOrder } from '../contract';
-import { eur } from '../ui';
+import { eur, substituteReasons, ToneIcon } from '../ui';
 
 /**
  * Product photo from /products/<id>.jpg (copied from the Valio Aimo webshop for the demo products,
@@ -35,8 +35,25 @@ const packs = (quantity: number, unit: string) => {
   return `${quantity.toLocaleString('fi-FI', { maximumFractionDigits: 2 })} × ${name ?? unit}`;
 };
 
-/** One row per order line: photo, product, packs × signed unit price, line total. */
+/** Warning icon on a line that needs a look; the reason opens on hover, focus or tap. */
+function LineFlag({ title, text }: { title: string; text: string }) {
+  const id = useId();
+  return (
+    <span className="flag">
+      <button type="button" className="flag-btn" aria-label={title} aria-describedby={id}>
+        <ToneIcon tone="warn" />
+      </button>
+      <span role="tooltip" id={id} className="flag-tip">
+        <strong>{title}</strong>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** One row per order line: photo, product, packs × signed unit price, line total, and a flag with the reason if Mikko is unsure. */
 export function CompactLines({ order }: { order: UiOrder }) {
+  const reasons = substituteReasons(order);
   return (
     <ul className="compact-lines" aria-label="Products">
       {order.lines.map((line) => (
@@ -48,6 +65,11 @@ export function CompactLines({ order }: { order: UiOrder }) {
               {packs(line.quantity, line.unit)} · {eur(line.unitPrice)}
             </span>
           </div>
+          {line.substituteFor ? (
+            <LineFlag title="Substitute" text={reasons.get(line.lineId) ?? `Mikko picked this instead of product ${line.substituteFor}.`} />
+          ) : (
+            !line.offerVerified && <LineFlag title="Price not verified" text="Valio Aimo's signature on this price did not check out." />
+          )}
           <span className="compact-price">{eur(line.totals.gross)}</span>
         </li>
       ))}

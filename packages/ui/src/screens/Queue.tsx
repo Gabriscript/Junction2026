@@ -37,7 +37,7 @@ export function Queue({ api }: { api: GatewayApi }) {
     <>
       <header className="page-head">
         <h1>Approvals</h1>
-        <p className="lead">The agent paused these orders. You decide.</p>
+        <p className="lead">Mikko paused these orders. You decide.</p>
       </header>
       <p className="notice" role="status" aria-live="polite">
         {announcement}
@@ -120,7 +120,7 @@ export function Queue({ api }: { api: GatewayApi }) {
         <dl className="meanings">
           <div>
             <dt>Needs your OK</dt>
-            <dd>Something is unusual, so the agent waits. You approve or reject.</dd>
+            <dd>Something is unusual, so Mikko waits. You approve or reject.</dd>
           </div>
           <div>
             <dt>Ordered</dt>
@@ -149,7 +149,7 @@ export function Queue({ api }: { api: GatewayApi }) {
             <SignedPriceNote order={order} />
             <ReviewActions api={api} order={order} onDone={refresh} />
             <p className="muted">
-              <a href={`#/orders/${order.orderId}`}>Details and why the agent chose this</a>
+              <a href={`#/orders/${order.orderId}`}>Details and why Mikko chose this</a>
             </p>
           </article>
         ))}

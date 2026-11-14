@@ -5,6 +5,8 @@ import { App } from './App';
 import { auditChain } from '@junction/shared/fixtures';
 import { verifyChain } from './hash';
 import { eur, vatPercent } from './ui';
+import { auroraOrder } from './mockData';
+import { CompactLines } from './screens/Compact';
 
 async function go(hash: string) {
   await act(async () => {
@@ -246,4 +248,29 @@ test('weekly spend shows 4 weeks, pages back through 12, and a picked week lists
   fireEvent.click(within(chart).getByRole('button', { name: /Week 36/ }));
   expect(within(chart).getByText(/^Week 36, delivery/)).toBeTruthy();
   expect(within(chart).getByText('milk')).toBeTruthy();
+});
+
+test('autopilot: switching it on sends the usual items due this Monday, minus the ones marked Ask me', async () => {
+  const api = new MockGatewayApi();
+  window.location.hash = '#/orders';
+  render(<App api={api} />);
+  const card = (await screen.findByRole('switch', { name: 'Autopilot' })).closest('section')!;
+  expect(within(card).getByText('Off. Nothing is ordered automatically.')).toBeTruthy();
+  fireEvent.click(within(card).getByRole('checkbox', { name: /Ask me before ordering milk/ }));
+  const before = (await api.listOrders()).length;
+  fireEvent.click(within(card).getByRole('switch', { name: 'Autopilot' }));
+  expect(await within(card).findByText(/Sent by Mikko/)).toBeTruthy();
+  const orders = await api.listOrders();
+  expect(orders).toHaveLength(before + 1);
+  const sent = orders.at(-1)!;
+  expect(sent.requestText).toMatch(/^Usual order for Mon 16 Nov: .*mozzarella/);
+  expect(sent.requestText).not.toMatch(/milk/);
+});
+
+test("a substitute line in the compact card carries a flag with Mikko's reason", () => {
+  render(<CompactLines order={auroraOrder} />);
+  const flag = screen.getByRole('button', { name: 'Substitute' });
+  const tip = document.getElementById(flag.getAttribute('aria-describedby')!)!;
+  expect(tip.getAttribute('role')).toBe('tooltip');
+  expect(tip.textContent).toMatch(/^SubstituteOnly 40 of the 100 bag-in-box packs/);
 });

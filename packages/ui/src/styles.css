@@ -422,6 +422,26 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .compact-line:first-child { border-top: 0; }
 .compact-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .compact-price { font-weight: 700; white-space: nowrap; }
+/* Per-line flag: the reason shows on hover, keyboard focus or tap (focus), anchored right so it grows into the row. */
+.flag { position: relative; flex: none; }
+.flag-btn { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--warn); cursor: help; }
+.flag-btn:hover { background: var(--warn-bg); }
+.flag-tip { display: none; position: absolute; z-index: 5; top: calc(100% + 4px); right: 0; width: min(280px, 75vw); padding: 12px 14px; gap: 4px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-pop); color: var(--ink-soft); font-size: 0.875rem; line-height: 1.4; }
+.flag-tip strong { color: var(--ink); font-size: 1rem; }
+.flag:hover .flag-tip, .flag-btn:focus + .flag-tip { display: grid; }
+/* Autopilot card and its on/off switch */
+.autopilot { margin-bottom: 16px; }
+.ap-next { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.ap-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 0.9375rem; }
+.ap-rules { display: grid; gap: 4px; padding-left: 18px; list-style: disc; color: var(--ink-soft); font-size: 0.9375rem; }
+.switch { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink-soft); font: inherit; font-weight: 600; cursor: pointer; }
+.switch-track { position: relative; width: 46px; height: 26px; border-radius: 999px; background: var(--field); transition: background 150ms var(--ease); }
+.switch-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); transition: transform 150ms var(--ease); }
+.switch[aria-checked='true'] { color: var(--accent); }
+.switch[aria-checked='true'] .switch-track { background: var(--accent); }
+.switch[aria-checked='true'] .switch-knob { transform: translateX(20px); }
+.ask-me { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--ink-soft); font-size: 0.875rem; white-space: nowrap; cursor: pointer; }
+.ask-me input { width: 18px; height: 18px; accent-color: var(--accent); }
 .order-card.compact { display: grid; gap: 12px; }
 .signed-note { font-size: 0.875rem; }
 .ordered-total { display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid var(--line); }
