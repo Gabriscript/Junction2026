@@ -2,6 +2,7 @@ import { SubstitutionPolicySchema } from '@junction/shared';
 import { hotelMandate } from '@junction/shared/fixtures';
 import { clean, runAgent } from './agent.js';
 import { MockGateway, MOCK_ISSUER } from './gateway.js';
+import { HttpGateway } from './http-client.js';
 import { createProvider } from './llm.js';
 
 // synthetic usual order sizes: the dataset has no order history
@@ -9,12 +10,15 @@ const DEMO_USUAL = { milk: { quantity: 500, unit: 'L' as const, period: 'week' }
 const text = process.argv.slice(2).join(' ') || 'I need 1,000 litres of lactose-free milk by Monday';
 
 try {
-  // LLM_PROVIDER defaults to none; the gateway is the in-process mock until the real one exists
-  const gateway = new MockGateway();
-  // demo setup: the trust root is read once from the mock's published keys; a real deployment pins issuer and JWKS URL in config
+  // LLM_PROVIDER defaults to none. GATEWAY_URL=http://localhost:8787 talks to the real gateway, otherwise the in-process mock.
+  // The trust root is configuration (issuer + JWKS URL; TRUST_ISSUER overrides), never what the offers claim.
+  const url = process.env.GATEWAY_URL?.replace(/\/+$/, '');
+  const jwksUrl = url && (process.env.TRUST_ISSUER ?? `${url}/.well-known/jwks.json`);
+  const mock = new MockGateway();
+  const gateway = url ? new HttpGateway(url) : mock;
   // SUBSTITUTION_POLICY=same_category shows step 8: a short cheap product topped up with a substitute
   const mandate = { ...hotelMandate, substitutionPolicy: SubstitutionPolicySchema.parse(process.env.SUBSTITUTION_POLICY ?? hotelMandate.substitutionPolicy) };
-  const trust = { issuer: MOCK_ISSUER, jwks: await gateway.getJwks() };
+  const trust = jwksUrl ? { issuer: jwksUrl, jwks: new URL(jwksUrl) } : { issuer: MOCK_ISSUER, jwks: await mock.getJwks() };
   const result = await runAgent(text, { llm: createProvider(), gateway, now: () => new Date(), trust, mandate, usual: DEMO_USUAL, confirmUnusual: process.env.CONFIRM_QUANTITY === '1' }); // demo mandate from the shared fixtures
   console.log(`Request: ${text}\n`);
   result.trace.forEach((step, index) => {
