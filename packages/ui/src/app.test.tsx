@@ -326,10 +326,13 @@ afterEach(() => {
 
 test('a live backend that errors at startup opens the mock instead of an error screen', async () => {
   vi.stubEnv('VITE_GATEWAY_URL', '/');
-  vi.stubGlobal('fetch', async () => new Response('A server error has occurred', { status: 500 }));
-  expect(await createApi()).toBeInstanceOf(MockGatewayApi);
   vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }));
+  expect(await createApi()).toBeInstanceOf(MockGatewayApi); // the demo is the default, even on a build with a backend
+  window.history.pushState(null, '', '/?live');
   expect(await createApi()).toBeInstanceOf(HttpGatewayApi);
+  vi.stubGlobal('fetch', async () => new Response('A server error has occurred', { status: 500 }));
+  expect(await createApi()).toBeInstanceOf(MockGatewayApi); // ?live with a dead backend: the demo, not an error screen
+  window.history.pushState(null, '', '/');
 });
 
 test('demo mode shows its auto-approve limit, and no auto-approved mock order is above it', async () => {
