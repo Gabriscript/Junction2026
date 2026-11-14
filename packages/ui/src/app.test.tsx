@@ -120,6 +120,7 @@ test('REST paths come from the shared tool registry, path params encoded', () =>
 test('chat: the first Enter reads back and flags the slips, nothing is ordered until the second Enter', async () => {
   const api = new MockGatewayApi();
   const before = (await api.listOrders()).length;
+  window.location.hash = '#/chat'; // chat moved off the default tab (request screen is the main flow)
   render(<App api={api} />);
   const box = await screen.findByLabelText('Message the purchasing agent');
 
@@ -138,6 +139,7 @@ test('chat: the first Enter reads back and flags the slips, nothing is ordered u
 
 test('chat: one-tap fixes and the attached menu, then the order goes out corrected', async () => {
   const api = new MockGatewayApi();
+  window.location.hash = '#/chat'; // chat moved off the default tab (request screen is the main flow)
   render(<App api={api} />);
   fireEvent.change(await screen.findByLabelText('Message the purchasing agent'), { target: { value: 'My usual order, but 5000 L milk and no basil' } });
   fireEvent.submit(screen.getByLabelText('Message the purchasing agent').closest('form')!);
@@ -185,7 +187,7 @@ test('a substitute line shows what it replaces and the agent\'s reason', async (
 });
 
 test('the + menu closes on a click outside it and on Escape', async () => {
-  window.location.hash = '#/new';
+  window.location.hash = '#/chat';
   render(<App api={new MockGatewayApi()} />);
   const plus = await screen.findByRole('button', { name: 'Attach a menu photo or a file' });
   const menu = () => screen.queryByRole('button', { name: 'Photo of the menu' });

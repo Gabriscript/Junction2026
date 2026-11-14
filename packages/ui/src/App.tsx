@@ -6,6 +6,7 @@ import { Chat } from './screens/Chat';
 import { OrderDetail } from './screens/OrderDetail';
 import { Orders } from './screens/Orders';
 import { Queue } from './screens/Queue';
+import { RequestForm } from './screens/RequestForm';
 import { Icon, useLive, type IconName } from './ui';
 
 // label: sidebar and breadcrumb; short: the phone's bottom bar, where four full labels do not fit.
@@ -62,8 +63,9 @@ export function App({ api }: { api: GatewayApi }) {
   }, [route]);
 
   const orderId = route.startsWith('orders/') ? decodeURIComponent(route.slice('orders/'.length)) : undefined;
-  const section = orderId ? 'orders' : (NAV.find((item) => item.route === route)?.route ?? 'new');
-  const current = NAV.find((item) => item.route === section)!;
+  // 'chat' is Gabri's chat ordering, kept reachable at #/chat but not in the menu (the request screen is the main flow)
+  const section = orderId ? 'orders' : route === 'chat' ? 'chat' : (NAV.find((item) => item.route === route)?.route ?? 'new');
+  const current = NAV.find((item) => item.route === section) ?? { route: 'chat', label: 'Chat', short: 'Chat', icon: 'request' as IconName };
   const demo = api instanceof MockGatewayApi;
 
   // The router owns the hash, so the skip link moves focus instead of navigating to "#main".
@@ -81,7 +83,9 @@ export function App({ api }: { api: GatewayApi }) {
         <aside className="side">
           <div className="side-head">
             <p className="brand">
-              <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
+              <a href="/shop.html" aria-label="Back to the Valio Aimo webshop">
+                <img className="brand-logo" src="/valio-aimo.svg" alt="Valio Aimo" width={96} height={32} />
+              </a>
               <span className="brand-name">Trusted Trade</span>
             </p>
             <button
@@ -161,8 +165,10 @@ export function App({ api }: { api: GatewayApi }) {
               <Queue api={api} />
             ) : section === 'orders' ? (
               <Orders api={api} />
-            ) : (
+            ) : section === 'chat' ? (
               <Chat api={api} />
+            ) : (
+              <RequestForm api={api} />
             )}
           </main>
         </div>
