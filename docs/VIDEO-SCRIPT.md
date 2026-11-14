@@ -63,32 +63,38 @@ Generated ≈ 24 s (4 clips); real recordings ≈ 91 s; editor ≈ 5 s. Rehearse
 > Medium shot in a modern restaurant kitchen with cool white light and steam rising from pans. A chef in his late 30s with short dark brown hair, a short trimmed beard, a white double-breasted jacket with rolled sleeves and a dark grey apron slides his smartphone back into his apron pocket with a relaxed smile, turns to the stove and tosses pasta in a pan. Camera slowly pulls back. Realistic, 24 fps. Ambient sound: sizzle and pan toss. No visible screen, no readable text, no logos.
 
 ### Shot 11 — Served (6 s)
-> Warm cinematic shot the next evening in a small modern bistro in Helsinki, tungsten light, candles. A long table of ten guests laughing and talking while plates are served: bruschette with chopped tomatoes, mozzarella and oregano; bowls of fusilli with green basil pesto and grated parmesan; small bowls with one scoop of vanilla and one scoop of chocolate ice cream. Slow overhead-to-side camera move. Realistic, 24 fps, shallow depth of field. Ambient sound: happy dinner chatter, cutlery. No readable text, no logos, no faces in close-up.
+> Warm cinematic shot the next evening in a small modern bistro in Helsinki, tungsten light, candles. A long table of ten guests on Wednesday evening laughing and talking while plates are served: bruschette with chopped tomatoes, mozzarella and oregano; bowls of fusilli with green basil pesto and grated parmesan; small bowls with one scoop of vanilla and one scoop of chocolate ice cream. Slow overhead-to-side camera move. Realistic, 24 fps, shallow depth of field. Ambient sound: happy dinner chatter, cutlery. No readable text, no logos, no faces in close-up.
 
 **If a clip comes out wrong:** regenerate with the same prompt; or add at the end "keep the same chef as in the reference image"; or cut the clip shorter in the editor. Do not add text or logos in Veo; add any captions in the editor.
 
 ---
 
-## 4. R-shots: what to record for real
+## 4. R-shots: what to record for real (order part, checked live on 2026-11-14)
 
-Prepare first: the app running on the real gateway, the demo mandate loaded, and **a real handwritten note** with exactly this text (it is filmed in shot 4 and scanned in shot 6):
+**Setup (once):** start the 3 local processes from [DEMO-RUN.md](DEMO-RUN.md), reset the gateway data so the queue and audit trail are empty, and open `http://<Mac Wi-Fi IP>:5173/shop.html` on the **real iPhone** (same Wi-Fi as the Mac). The iOS Simulator has no camera, so the scan must be filmed on a real phone.
+
+**The handwritten note** (filmed in shot 4, scanned in shot 6). Write exactly this, clearly, one dish per line:
 
 ```
-Tomorrow dinner, 10 people
+Wednesday dinner, 10 people
 Appetizer: bruschette pomodorini mozzarella origano
 Fusilli al pesto
 Dessert: gelato vaniglia e cioccolato
 ```
 
-| # | Device | What to record | Must be visible |
+Use **Wednesday**, not "tomorrow": on a weekend "tomorrow" is Sunday, when Valio Aimo does not deliver, and the system then (correctly) refuses every line.
+
+| # | Device | Step by step | Must be visible |
 |---|---|---|---|
 | 4 | real camera / phone camera | the handwritten note on the steel counter, slow push-in | the four lines, readable |
-| 6 | **real iPhone** screen recording (the iOS Simulator has no camera) | order page → **AI Assistant** → tap text box → **Scan Text** (iPhone Live Text) → point at the note → text appears → chef checks → **Send** | the scanned text in the box |
-| 7 | iPhone screen recording | the plan: 3 dishes with course, shopping list with quantities, assumptions ("ready-made pesto", "delivery tomorrow") | servings 10, quantities |
-| 8 | iPhone screen recording | ✅ lines ordered automatically with "signature verified"; fusilli only in a 5 kg bag (rounding shown); 🟡 **pomodorini not deliverable → regular tomatoes** with its reason code → chef taps **Approve** | reason code, Approve tap |
-| 10 | laptop screen recording | Valio Aimo view: audit trail of this order, signature verified, reason codes; then a tampered/rogue order arriving and being **blocked** | "blocked" + reason |
+| 6 | **real iPhone** screen recording | 1. Valio Aimo webshop page (lavender header, logo) → tap the lime **ORDER WITH AI ASSISTANT** button. 2. *New request* opens → tap the text box → **Scan Text** (Live Text camera icon) → point at the note → **Insert**. 3. Check the text, fix a word if needed → tap **SEND TO ASSISTANT** (it shows "Planning and ordering…" for ~10 s) | the scanned text in the box; the Send tap |
+| 7 | iPhone screen recording | scroll **Your plan**: "Dinner for 10 · delivery Wednesday 18/11", the 3 dishes with Appetizer / Dessert, then **What the assistant assumed** (2 bruschette per person, ready-made pesto, one ~70 ml scoop per flavour) | servings, delivery day, assumptions |
+| 8 | iPhone screen recording | scroll **Shopping list**: header "**7 ordered automatically · 2 need you**"; green *Ordered* lines (fresh tomatoes, mozzarella, oregano, Barilla fusilli, parmigiano, vanilla and chocolate ice cream) with product and price; yellow *Needs your approval* on **ciabatta** (cards: *Stock not verified* + *After order cut-off*) and **basil pesto** (*After order cut-off*) → tap **APPROVE 2 LINES** → in **Approvals** open the ciabatta card → tap **Approve**, then the pesto → **Approve** | the "7 · 2" header, the yellow reason cards, the Approve taps |
+| 10 | laptop screen recording | open the same app on the laptop → **Audit trail** tab: Valio Aimo view of the events for these orders (offers signed, orders proposed, human approvals) with the chain check showing *verified*; then the tampered/rogue order scene being **blocked** (if built) | "verified" chain; "blocked" + reason |
 
-Only **real exceptions** (team decision): no simulated stock-outs. Data checked on 2026-11-14 in [VIDEO.md](VIDEO.md).
+What the result is based on (real, not staged): every line is a real product from the synthetic Valio Aimo catalogue, every price comes from a signed offer of the live mock API, and the two yellow lines are real policy decisions (`UNVERIFIED_STOCK`: terminal stock Aimo can't confirm; `AFTER_CUTOFF`: the mock API's order cut-off has passed). The mock API ignores the date for cut-offs, so the same **7 automatic + 2 for the chef** appears on any recording day.
+
+Only **real exceptions** (team decision): no simulated stock-outs.
 
 ---
 
@@ -96,7 +102,7 @@ Only **real exceptions** (team decision): no simulated stock-outs. Data checked 
 
 | Time | Line |
 |---|---|
-| 0:01 | "Tomorrow: dinner for ten. Three courses." |
+| 0:01 | "Wednesday: dinner for ten. Three courses." |
 | 0:12 | "The chef doesn't open a webshop. He hands it to his purchasing agent." |
 | 0:36 | "The agent turns the menu into a shopping list, and shows every assumption." |
 | 0:54 | "Inside the kitchen's rules, it orders on its own, at prices Valio Aimo has signed. When something changes, the chef decides." |

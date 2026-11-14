@@ -23,11 +23,11 @@ Prerequisites: `.env` with `AIMO_API_KEY`, and `npm run load-catalogue` done onc
 Demo kitchen: **Bistro Helsinki (demo)**, mandate `mdt_demo_bistro_1`, gateway demo agent `agent:demo-1`, customer `789`, auto-approve limit €80, no forced attributes (see `packages/agent/src/assistant/server.ts`).
 
 ## Real results seen (Saturday 14.11.2026 ~15:15, delivery Monday 16.11)
-Reservation: *Monday dinner, 10 people, Appetizer: bruschette pomodorini mozzarella origano, Fusilli al pesto, Dessert: gelato vaniglia e cioccolato*
+Reservation: *Monday (or Wednesday) dinner, 10 people, Appetizer: bruschette pomodorini mozzarella origano, Fusilli al pesto, Dessert: gelato vaniglia e cioccolato*
 - 7 ordered automatically: fresh tomatoes (TOMATO NL/BE/ES), mozzarella, oregano, Barilla fusilli, parmigiano reggiano, vanilla and chocolate ice cream.
 - 2 need the chef: ciabatta (`UNVERIFIED_STOCK`, `AFTER_CUTOFF`), basil pesto (`AFTER_CUTOFF`).
 - One fusilli offer turned down for `PARTIAL_AVAILABILITY`.
-- Results depend on the clock: `AFTER_CUTOFF` appears when the order cut-off for the delivery day has passed; "tomorrow" on a Saturday means Sunday, which Aimo does not deliver (`DELIVERY_LATER_THAN_NEEDED`), so write **Monday**.
+- Results depend on the clock: `AFTER_CUTOFF` appears when the order cut-off for the delivery day has passed; "tomorrow" on a Saturday means Sunday, which Aimo does not deliver (`DELIVERY_LATER_THAN_NEEDED`), so write a weekday. **For the video use Wednesday**: same result (7 automatic + 2 for the chef), because the mock API's cut-off ignores the date.
 
 ## Clean state before recording
 Stop the gateway (only the listener: `lsof -ti tcp:8787 -sTCP:LISTEN | xargs kill`), move `data/gateway.sqlite*` into `data/backup/`, start the gateway again. Orders and the audit chain start empty.

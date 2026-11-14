@@ -8,10 +8,10 @@ Status: **proposal**, 2026-11-14. Based on Claudio's idea (reservation → chef 
 ## Storyboard (≈ 2:00)
 | Time | Scene | What it proves |
 |---|---|---|
-| 0:00–0:12 | Reception hands the chef a reservation: *tomorrow dinner, 10 people — bruschette pomodorini mozzarella origano, fusilli al pesto, gelato vaniglia e cioccolato* | Real user need |
+| 0:00–0:12 | Reception hands the chef a reservation: *Wednesday dinner, 10 people — bruschette pomodorini mozzarella origano, fusilli al pesto, gelato vaniglia e cioccolato* | Real user need |
 | 0:12–0:30 | Phone: Aimo order page → **AI Assistant** → chef taps the text box → iPhone **Scan Text** (built-in Live Text, camera) reads the reservation into the box → chef checks → send | Request |
-| 0:30–0:50 | **Plan**: 3 dishes → shopping list with quantities (`planMenu`), assumptions visible ("ready-made pesto", "delivery tomorrow") | Least manual correction |
-| 0:50–1:20 | **Decisions**: ✅ most lines auto-ordered (signed offers verified, within budget); fusilli: the agent picks the option that fits the rules and logs why; 🟡 real exceptions reach the chef with a reason code (pomodorini not deliverable → regular tomatoes) → tap **Approve** → back to cooking | Guardrails, exceptions |
+| 0:30–0:50 | **Plan**: 3 dishes → shopping list with quantities (`planMenu`), assumptions visible ("ready-made pesto", "delivery Wednesday") | Least manual correction |
+| 0:50–1:20 | **Decisions**: ✅ most lines auto-ordered (signed offers verified, within budget); fusilli: the agent picks the option that fits the rules and logs why; 🟡 real exceptions reach the chef with a reason code (ciabatta: stock not verified + after cut-off; pesto: after cut-off) → tap **Approve** → back to cooking | Guardrails, exceptions |
 | 1:20–2:00 | Laptop, **Valio Aimo view**: audit trail, "signature verified", reason codes; 5 s of a rogue/tampered order **blocked**; end on the team name | Trust, auditability |
 
 ## Catalogue check (synthetic data, 2026-11-14)
@@ -45,7 +45,7 @@ Recommendation: use the real exceptions (tomato not deliverable, unverified stoc
 | chocolate ice cream | Suomen Jäätelö 5 L €47.20 (9), GelatoLAB €26.85 (38) | **Amigo chocolate** |
 
 What this gives the demo with **real data only**:
-- Substitution: pomodorini → regular tomatoes (needs chef: different product).
+- Live run (2026-11-14): the agent picks regular fresh tomatoes directly (the small ones are not deliverable), so this is no longer a visible exception. The visible ones are ciabatta and pesto, see [VIDEO-SCRIPT.md](VIDEO-SCRIPT.md) §4.
 - Pack trade-off: fusilli only in a 5 kg bag (we need 1 kg) → cheapest per kg but 4 kg left over; the agent shows the rounding.
 - Unverified stock: Saclà pesto, tomatoes → `UNVERIFIED_STOCK`.
 - **Team decision (2026-11-14): real exceptions only.** Vanilla is available, so there is no "vanilla sold out" scene and no simulated stock-out. The video shows only what the system really returns.
