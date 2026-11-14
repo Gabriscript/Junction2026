@@ -43,6 +43,10 @@ export interface AgentDeps {
   mandate: Mandate;
   /** Extension point for step 8 (ranking, substitution, partial fill). Default: cheapest total. */
   select?: SelectOffer;
+  /** Usual order size per product words, e.g. { milk: 500 L a week }. Synthetic in the demo: the dataset has no order history. */
+  usual?: Record<string, Usual>;
+  /** The chef confirmed a quantity far above the usual one. */
+  confirmUnusual?: boolean;
 }
 
 export interface AgentResult {
@@ -57,9 +61,28 @@ export interface AgentResult {
   lines?: PlanLine[];
   rejected: RejectedOffer[];
   trace: TraceStep[];
+  /** Questions for the chef before anything is ordered, e.g. a quantity far above the usual one. */
+  warnings?: string[];
+}
+
+export interface Usual {
+  quantity: number;
+  unit: StructuredNeed['unit'];
+  period: string; // "week", "month"
 }
 
 const SHORTLIST_SIZE = 5;
+// shortcut: a fixed ratio; a real one would come from the customer's order variance
+const UNUSUAL_RATIO = 3;
+const qty = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+/** A warning when the need is far above the usual order: an extra zero ("5000" for "500") is the classic slip. */
+export function unusualQuantity(need: StructuredNeed, usual: Usual | undefined): string | undefined {
+  if (!usual || usual.unit !== need.unit || need.quantity < UNUSUAL_RATIO * usual.quantity) return undefined;
+  const typo = need.quantity / 10;
+  const hint = typo >= usual.quantity / 2 && typo <= usual.quantity * 2 ? `did you mean ${qty(typo)} ${need.unit}?` : 'please confirm the quantity';
+  return `${qty(need.quantity)} ${need.unit} of ${need.productQuery} is ${qty(need.quantity - usual.quantity)} ${need.unit} more than usual (${qty(usual.quantity)} ${need.unit} a ${usual.period}): ${hint}`;
+}
 // money is integer euro cents (toCents, lineCents in substitute.ts), formatted only at the edge
 const eur = (cents: number) => `€${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -120,6 +143,12 @@ export async function runAgent(text: string, deps: AgentDeps): Promise<AgentResu
     step('stop', why, `not ordered: ${decision.reasonCodes.join(', ') || 'no reason code applies'}`);
     return { need, ordered: false, status: 'blocked', decision, rejected, trace };
   };
+
+  const warning = deps.confirmUnusual ? undefined : unusualQuantity(need, deps.usual?.[need.productQuery]);
+  if (warning) {
+    step('check_quantity', `${qty(need.quantity)} ${need.unit} of ${need.productQuery}`, warning);
+    return { ...stop('waiting for the chef to confirm an unusual quantity'), warnings: [warning] };
+  }
 
   // nothing the gateway sends or fails to send may crash the run: stop, blocked, and keep the trace
   try {

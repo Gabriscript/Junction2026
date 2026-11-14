@@ -379,3 +379,29 @@ describe('step 8: substitutes and partial fill', () => {
     expect(result.lines?.[1]?.reason).toContain('outside the mandate policy');
   });
 });
+
+describe('unusual quantity check', () => {
+  const usual = { milk: { quantity: 500, unit: 'L' as const, period: 'week' } };
+
+  it('stops before ordering 10x the usual amount and suggests the likely typo', async () => {
+    const gateway = new MockGateway({ now: () => NOW });
+    const search = vi.spyOn(gateway, 'search_products');
+    const result = await runAgent('I need 5,000 litres of lactose-free milk by Monday', { ...(await deps(gateway)), usual });
+    expect(search).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ordered: false, status: 'blocked' });
+    expect(result.warnings).toEqual(['5,000 L of milk is 4,500 L more than usual (500 L a week): did you mean 500 L?']);
+  });
+
+  it('orders once the chef confirms, and lets normal quantities through', async () => {
+    const confirmed = await runAgent('I need 5,000 litres of lactose-free milk by Monday', { ...(await deps(new MockGateway({ now: () => NOW }))), usual, confirmUnusual: true, mandate: { ...hotelMandate, budgetLimit: 10000 } }); // 5,000 L is above the demo budget
+    expect(confirmed.warnings).toBeUndefined();
+    expect(confirmed.order).toBeDefined();
+    const normal = await runAgent(DEMO, { ...(await deps(new MockGateway({ now: () => NOW }))), usual });
+    expect(normal.ordered).toBe(true);
+  });
+
+  it('asks for confirmation without a guess when a typo does not explain it', async () => {
+    const result = await runAgent('I need 2,000 litres of lactose-free milk by Monday', { ...(await deps(new MockGateway({ now: () => NOW }))), usual });
+    expect(result.warnings?.[0]).toMatch(/please confirm the quantity$/);
+  });
+});
