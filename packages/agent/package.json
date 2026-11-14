@@ -10,11 +10,16 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo": "tsc -b ../shared && tsx src/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
     "@junction/shared": "*",
+    "jose": "^6.2.17",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
   }
 }
