@@ -256,5 +256,7 @@ export class MockGatewayApi implements GatewayApi {
 
 export function createApi(): GatewayApi {
   const url = import.meta.env.VITE_GATEWAY_URL as string | undefined;
-  return url ? new HttpGatewayApi(url) : new MockGatewayApi();
+  // ?demo forces the mock (with the guided tour) on a live deploy.
+  const demo = new URLSearchParams(window.location.search).has('demo');
+  return url && !demo ? new HttpGatewayApi(url) : new MockGatewayApi();
 }
