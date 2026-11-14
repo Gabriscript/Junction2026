@@ -15,7 +15,8 @@ Prerequisites: `.env` with `AIMO_API_KEY`, and `npm run load-catalogue` done onc
 - On a real iPhone (same Wi-Fi as the Mac): `http://<Mac Wi-Fi IP>:5173/shop.html` (`ipconfig getifaddr en0` shows the IP). `dev:live` listens on all interfaces. Then tap the text box → **Scan Text** to read the handwritten reservation.
 
 ## Scan, upload, speak (New request and Correction boxes)
-- **Scan note**: opens the phone camera; Claude (Haiku, `SCAN_MODEL` to change) reads the handwritten note and the text lands in the box for the chef to check. Needs `ANTHROPIC_API_KEY` in `.env` (the assistant server loads it; `/api/health` shows `"scan": true`).
+- **Scan note on iPhone/iPad**: uses Apple's **Live Text** ("Scan Text"), the same on-device Vision OCR as AuditReady: no AI, no key, works offline. The button puts the cursor in the box; the chef taps the Scan Text icon above the keyboard (or taps the box again → Scan Text), points at the note, then Insert. Live Text can't be opened from JavaScript, so this one extra tap is needed.
+- **Scan note on a computer / Android** (and photos or PDFs via Upload): the photo goes to Claude (Haiku, `SCAN_MODEL` to change), which reads the note. Needs `ANTHROPIC_API_KEY` in `.env` (the assistant server loads it; `/api/health` shows `"scan": true`).
 - **Upload file**: photo or PDF → same as Scan; **CSV / Excel (.xlsx)** are read in the browser, one row per line (no AI).
 - **Speak**: the browser's speech recognition (Safari/Chrome). Needs a secure page: on a real iPhone start the web app with `npm run dev:https -w packages/ui` and open `https://<Mac IP>:5173/shop.html` (accept the self-signed certificate once). On the Mac and the simulator `http://localhost` is enough. Language follows the phone's language.
 
