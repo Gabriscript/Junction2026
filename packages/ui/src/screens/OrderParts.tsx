@@ -3,13 +3,14 @@ import { useId, useState, type FormEvent } from 'react';
 import type { GatewayApi } from '../api';
 import { UNIT_CODE_NAMES, type Actor } from '@junction/shared';
 import type { UiOrder } from '../contract';
-import { eur, ReasonChips, vatPercent, whyText } from '../ui';
+import { eur, ReasonChips, substituteReasons, vatPercent, whyText } from '../ui';
 
 // shortcut: no sign-in in the prototype, add the real approver identity with auth
 export const APPROVER: Actor = { type: 'human', id: 'user:demo.approver', name: 'Demo approver' };
 
 export function Cart({ order }: { order: UiOrder }) {
   const { totals } = order;
+  const reasons = substituteReasons(order);
   return (
     <div className="cart">
       <ul className="lines" aria-label="Cart lines">
@@ -31,6 +32,12 @@ export function Cart({ order }: { order: UiOrder }) {
                 {', '}
                 {unverified ? 'terminal stock, quantity not verified' : 'stock verified'}
               </p>
+              {line.substituteFor && (
+                <p className="substitute">
+                  <strong>Substitute for {order.lines.find((l) => l.productId === line.substituteFor)?.productName ?? `product ${line.substituteFor}`}.</strong>{' '}
+                  {reasons.get(line.lineId)?.replace(/^./, (c) => c.toUpperCase())}
+                </p>
+              )}
             </li>
           );
         })}
@@ -55,20 +62,33 @@ export function Cart({ order }: { order: UiOrder }) {
 
 const TIER_LABEL = { good: 'Good', better: 'Better', best: 'Best' } as const;
 
-export function DecisionSummary({ order }: { order: UiOrder }) {
+/** Reasons and the agent's why; `withAlternatives` false when the caller shows them elsewhere. */
+export function DecisionSummary({ order, withAlternatives = true }: { order: UiOrder; withAlternatives?: boolean }) {
   return (
     <>
       <ReasonChips codes={order.decision.reasonCodes} />
-      <h4>Why</h4>
-      {whyText(order).map((text, i) => (
-        <p key={i}>{text}</p>
-      ))}
+      <details className="more">
+        <summary>Why the agent chose this</summary>
+        {whyText(order).map((text, i) => (
+          <p key={i} className="why">
+            {text}
+          </p>
+        ))}
+      </details>
+      {withAlternatives && <Alternatives order={order} />}
+    </>
+  );
+}
+
+export function Alternatives({ order, wide = false }: { order: UiOrder; wide?: boolean }) {
+  return (
+    <>
       {order.alternatives && order.alternatives.length > 0 && (
-        <>
-          <h4>Alternatives considered</h4>
-          <ul className="alternatives">
+        <details className="more">
+          <summary>Other options ({order.alternatives.length})</summary>
+          <ul className={wide ? 'alternatives alt-grid' : 'alternatives'}>
             {order.alternatives.map((alt) => (
-              <li key={alt.tier}>
+              <li key={alt.tier} className={alt.chosen ? 'chosen' : undefined}>
                 <div className="line-main">
                   <span>
                     <strong>{TIER_LABEL[alt.tier]}:</strong> {alt.title}
@@ -82,7 +102,7 @@ export function DecisionSummary({ order }: { order: UiOrder }) {
               </li>
             ))}
           </ul>
-        </>
+        </details>
       )}
     </>
   );

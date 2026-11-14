@@ -100,5 +100,13 @@ describe('demo week', () => {
     expect(findings[0]?.message).toMatch(/^5,000 L of milk is .* more than usual \(.* L a week\): did you mean 500 L\?$/);
     expect(findings[1]?.message).toContain('used in pizza margherita');
     expect(findings[2]?.message).toBe('pizza tedesca needs wurstel: never ordered before and not in this week\'s orders');
+    // the answer the UI offers: the missing zero, the usual basil, nothing invented for a new ingredient
+    expect(findings.map((f) => f.suggestion)).toEqual([
+      { item: 'milk', quantity: 500, unit: 'L' },
+      { item: 'basil', quantity: parLevels(history).get('basil')!.median, unit: 'KG' },
+      undefined,
+    ]);
+    const answered = week.map((o) => (o.item === 'milk' ? findings[0]!.suggestion! : o)).concat(findings[1]!.suggestion!, { item: 'wurstel', quantity: 5, unit: 'KG' });
+    expect(reviewWeek(history, DEMO_MENU, answered)).toEqual([]);
   });
 });

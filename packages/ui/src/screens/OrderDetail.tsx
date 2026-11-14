@@ -1,5 +1,5 @@
 import type { GatewayApi } from '../api';
-import { StatusBadge, time, useLive } from '../ui';
+import { Icon, StatusBadge, time, useLive } from '../ui';
 import { Cart, DecisionSummary, ReviewActions } from './OrderParts';
 
 export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string }) {
@@ -7,35 +7,37 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
 
   return (
     <>
-      <p>
-        <a href="#/queue">Back to approval queue</a>
+      <p className="back">
+        <a href="#/orders">
+          <Icon name="back" size={18} />
+          Back to orders
+        </a>
       </p>
-      <h1>Order {orderId}</h1>
+      <header className="page-head page-head-row">
+        <div>
+          <h1>Order {orderId}</h1>
+          {order && (
+            <>
+              <p className="lead">{order.buyerName}</p>
+              <p className="muted">
+                {order.agentName ? `${order.agentName}, ${order.agentId}` : order.agentId}
+              </p>
+            </>
+          )}
+        </div>
+        {order && <StatusBadge status={order.status} />}
+      </header>
       {error && (
         <p className="error" role="alert">
           Could not load this order. {error}
         </p>
       )}
       {order && (
-        <>
-          <div className="card-head">
-            <div>
-              <p>
-                <strong>{order.buyerName}</strong>
-              </p>
-              <p className="muted">{order.agentName ? `${order.agentName} (${order.agentId})` : order.agentId}</p>
-            </div>
-            <StatusBadge status={order.status} />
-          </div>
-          <p className="request">Request: {order.requestText}</p>
-
-          <section aria-labelledby="cart-title">
-            <h2 id="cart-title">Cart</h2>
-            <Cart order={order} />
-          </section>
-
-          <section aria-labelledby="decision-title">
-            <h2 id="decision-title">Decision record</h2>
+        <div className="detail-grid">
+          <section className="card detail-decision" aria-labelledby="decision-title">
+            <h2 id="decision-title" className="card-title">
+              Decision
+            </h2>
             <dl className="facts">
               <div>
                 <dt>Gateway decision</dt>
@@ -66,9 +68,21 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
             <ReviewActions api={api} order={order} onDone={refresh} />
           </section>
 
+          <section className="card detail-cart" aria-labelledby="cart-title">
+            <h2 id="cart-title" className="card-title">
+              Cart
+            </h2>
+            <p className="request">
+              <span className="muted">Request</span> {order.requestText}
+            </p>
+            <Cart order={order} />
+          </section>
+
           {order.trace && order.trace.length > 0 && (
-            <section aria-labelledby="trace-title">
-              <h2 id="trace-title">What the agent did</h2>
+            <section className="card detail-trace" aria-labelledby="trace-title">
+              <h2 id="trace-title" className="card-title">
+                Steps
+              </h2>
               <ol className="trace">
                 {order.trace.map((step, i) => (
                   <li key={i}>
@@ -87,8 +101,10 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
             </section>
           )}
 
-          <section aria-labelledby="offers-title">
-            <h2 id="offers-title">Signed offers used</h2>
+          <section className="card detail-offers" aria-labelledby="offers-title">
+            <h2 id="offers-title" className="card-title">
+              Signed offers
+            </h2>
             <ul className="rows">
               {order.lines.map((line) => (
                 <li key={line.lineId}>
@@ -104,7 +120,7 @@ export function OrderDetail({ api, orderId }: { api: GatewayApi; orderId: string
               ))}
             </ul>
           </section>
-        </>
+        </div>
       )}
     </>
   );

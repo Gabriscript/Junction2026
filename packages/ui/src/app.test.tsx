@@ -16,12 +16,13 @@ async function go(hash: string) {
 test('approving a pending order updates its status and appends an audit event, no reload', async () => {
   const api = new MockGatewayApi();
   const before = (await api.listAuditEvents('aimo')).length;
+  window.location.hash = '#/queue';
   render(<App api={api} />);
 
   fireEvent.click(await screen.findByRole('button', { name: 'Approve order ord-1002' }));
 
   await screen.findByText('Nothing is waiting for approval.');
-  const row = screen.getByRole('link', { name: /City Hospital kitchen/ });
+  const row = screen.getByRole('link', { name: /City Hospital kitchen/ }).closest('tr')!;
   expect(within(row).getByText('Approved')).toBeTruthy();
 
   const events = await api.listAuditEvents('aimo');
@@ -35,6 +36,7 @@ test('approving a pending order updates its status and appends an audit event, n
 
 test('rejecting asks for a reason inline and records it', async () => {
   const api = new MockGatewayApi();
+  window.location.hash = '#/queue';
   render(<App api={api} />);
 
   fireEvent.click(await screen.findByRole('button', { name: 'Reject order ord-1002' }));
@@ -50,6 +52,7 @@ test('rejecting asks for a reason inline and records it', async () => {
 });
 
 test('reason code chips show the shared title and description, not only colour', async () => {
+  window.location.hash = '#/queue';
   render(<App api={new MockGatewayApi()} />);
   const chips = await screen.findByRole('list', { name: 'Reason codes' });
   expect(within(chips).getByText('Partial availability')).toBeTruthy();
@@ -72,6 +75,7 @@ test('tampering with one audit event makes the chain indicator show broken', asy
 
 test('a new pending order from a request is announced and shown live', async () => {
   const api = new MockGatewayApi();
+  window.location.hash = '#/queue';
   render(<App api={api} />);
   await screen.findByRole('button', { name: 'Approve order ord-1002' });
 
@@ -111,4 +115,67 @@ test('verifyChain follows the shared hashing rule: the shared fixture chain veri
 test('REST paths come from the shared tool registry, path params encoded', () => {
   expect(toolPath('approve_order', { orderId: 'ord/1' })).toBe('/v1/orders/ord%2F1/approve');
   expect(toolPath('get_order', { orderId: 'ord-1' })).toBe('/v1/orders/ord-1');
+});
+
+test('chat: the first Enter reads back and flags the slips, nothing is ordered until the second Enter', async () => {
+  const api = new MockGatewayApi();
+  const before = (await api.listOrders()).length;
+  render(<App api={api} />);
+  const box = await screen.findByLabelText('Message the purchasing agent');
+
+  fireEvent.change(box, { target: { value: 'My usual order, but 5000 L milk' } });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  expect(await screen.findByText(/5,000 L of milk .* did you mean 500 L\?/)).toBeTruthy();
+  // the confirm names the risk instead of a generic "are you sure"
+  expect(screen.getByRole('button', { name: 'Send with 5,000 L milk' })).toBeTruthy();
+  expect(await api.listOrders()).toHaveLength(before);
+
+  fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
+  expect(await screen.findByText(/Sent\. Order ord-1004/)).toBeTruthy();
+  const order = (await api.listOrders()).at(-1)!;
+  expect(order.lines.find((l) => l.productName === 'Milk')).toMatchObject({ quantity: 5000, unit: 'L' });
+});
+
+test('chat: one-tap fixes and the attached menu, then the order goes out corrected', async () => {
+  const api = new MockGatewayApi();
+  render(<App api={api} />);
+  fireEvent.change(await screen.findByLabelText('Message the purchasing agent'), { target: { value: 'My usual order, but 5000 L milk and no basil' } });
+  fireEvent.submit(screen.getByLabelText('Message the purchasing agent').closest('form')!);
+  await screen.findByRole('list', { name: 'Open questions' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Use 500 L' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Add .* KG basil$/ }));
+  expect(screen.queryByRole('list', { name: 'Open questions' })).toBeNull();
+
+  // a menu photo brings in the new dish: the agent asks about its ingredient
+  const photo = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*"]')!;
+  fireEvent.change(photo, { target: { files: [new File(['x'], 'menu-week-47.jpg', { type: 'image/jpeg' })] } });
+  fireEvent.keyDown(screen.getByLabelText('Message the purchasing agent'), { key: 'Enter' });
+  expect(await screen.findByText(/I used the sample menu/)).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Add wurstel' }));
+  fireEvent.change(screen.getByLabelText('Quantity of wurstel'), { target: { value: '5' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Send order' }));
+  await screen.findByText(/Sent\. Order/);
+  const lines = (await api.listOrders()).at(-1)!.lines.map((l) => [l.productName, l.quantity]);
+  expect(lines).toEqual(expect.arrayContaining([['Milk', 500], ['Wurstel', 5]]));
+  expect(lines.some(([name]) => name === 'Basil')).toBe(true);
+});
+
+test('orders dashboard shows the par levels the agent checks against', async () => {
+  window.location.hash = '#/orders';
+  render(<App api={new MockGatewayApi()} />);
+  const usual = await screen.findByRole('table', { name: '' });
+  expect(usual).toBeTruthy();
+  const milk = screen.getByRole('rowheader', { name: 'milk' }).closest('tr')!;
+  expect(within(milk).getByText('Every week')).toBeTruthy();
+  expect(await screen.findByRole('link', { name: /1,000 L lactose-free milk/ })).toBeTruthy();
+});
+
+test('a substitute line shows what it replaces and the agent\'s reason', async () => {
+  render(<App api={new MockGatewayApi()} />);
+  await go('#/orders/ord-1000');
+  const note = await screen.findByText(/Substitute for Lactose-free milk bag-in-box 10 L/);
+  expect(note.closest('p')?.textContent).toMatch(/Only 40 of the 100 bag-in-box packs .* 1 140 € instead of 1 209,60 €/);
 });

@@ -3,7 +3,7 @@
  * how often, and what the menu needs. The dataset has no order history, so the demo history is
  * synthetic (seeded, reproducible) and says so.
  */
-import { unusualQuantity, type Usual } from './agent.js';
+import { meantQuantity, unusualQuantity, type Usual } from './quantity.js';
 import type { Unit } from './contract.js';
 
 export interface WeekOrder {
@@ -23,6 +23,8 @@ export interface Finding {
   kind: 'quantity' | 'missing' | 'menu';
   item: string;
   message: string;
+  /** The line that would answer the question, when there is an obvious one (the usual amount, the missing zero). */
+  suggestion?: WeekOrder;
 }
 
 /** Par level of one item: robust usual quantity (median), how often it is ordered, and when it last was. */
@@ -96,7 +98,8 @@ export function reviewWeek(history: PastWeek[], menu: Dish[], thisWeek: WeekOrde
       par && par.unit !== order.unit
         ? `${fmt(order.quantity)} ${order.unit} of ${order.item}: usually ordered in ${par.unit} (about ${fmt(par.median)} ${par.unit}), please check the unit`
         : unusualQuantity({ quantity: order.quantity, unit: order.unit, productQuery: order.item }, usual[order.item]);
-    if (warning) findings.push({ kind: 'quantity', item: order.item, message: warning });
+    const meant = warning && par?.unit === order.unit ? meantQuantity(order.quantity, usual[order.item]!) : undefined;
+    if (warning) findings.push({ kind: 'quantity', item: order.item, message: warning, ...(meant ? { suggestion: { ...order, quantity: meant } } : {}) });
   }
   for (const [item, par] of pars) {
     if (ordered.has(item) || par.count < MIN_ORDERS || par.weeksSince < par.every || par.weeksSince > DROPPED_AFTER * par.every) continue;
@@ -105,6 +108,7 @@ export function reviewWeek(history: PastWeek[], menu: Dish[], thisWeek: WeekOrde
     findings.push({
       kind: 'missing',
       item,
+      suggestion: { item, quantity: nice(par.median), unit: par.unit },
       message: `you usually order ${item} ${rhythm} (about ${fmt(par.median)} ${par.unit}${dishes.length ? `, used in ${dishes.join(', ')}` : ''}), not in this week's orders: forgotten?`,
     });
   }

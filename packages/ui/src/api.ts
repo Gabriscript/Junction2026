@@ -10,7 +10,8 @@ import {
 } from '@junction/shared';
 import type { AuditScope, UiOrder } from './contract';
 import { hashEvent } from './hash';
-import { eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, type SeedEvent } from './mockData';
+import { auroraOrder, eventsForOrder, hospitalOrder, hotelOrder, rogueOrder, weekOrder, type SeedEvent } from './mockData';
+import type { WeekOrder } from './kitchen';
 
 export interface GatewayApi {
   listOrders(): Promise<UiOrder[]>;
@@ -22,6 +23,8 @@ export interface GatewayApi {
   /** Calls back for every new audit event. Returns an unsubscribe function. */
   subscribe(onEvent: (event: AuditEvent) => void): () => void;
   submitRequest(text: string): Promise<UiOrder>;
+  /** The week's order after the chef confirmed it in the chat; `text` is the read-back the agent works from. */
+  submitWeek(lines: WeekOrder[], text: string): Promise<UiOrder>;
 }
 
 /** REST path of a registry tool, with `{param}` placeholders filled from the input. */
@@ -77,6 +80,10 @@ export class HttpGatewayApi implements GatewayApi {
   async submitRequest(text: string) {
     return OrderSchema.parse(await this.call('POST', '/api/requests', { text }));
   }
+  // The real agent parses the confirmed read-back itself, so the lines are not sent.
+  submitWeek(_lines: WeekOrder[], text: string) {
+    return this.submitRequest(text);
+  }
 
   subscribe(onEvent: (event: AuditEvent) => void) {
     const source = new EventSource(`${this.base}/api/events`);
@@ -93,7 +100,7 @@ export class HttpGatewayApi implements GatewayApi {
 
 /** In-memory gateway seeded with the demo scenes. Used when VITE_GATEWAY_URL is unset. */
 export class MockGatewayApi implements GatewayApi {
-  private orders: UiOrder[] = structuredClone([hotelOrder, hospitalOrder, rogueOrder]);
+  private orders: UiOrder[] = structuredClone([auroraOrder, hotelOrder, hospitalOrder, rogueOrder]);
   private events: AuditEvent[] = [];
   private listeners = new Set<(event: AuditEvent) => void>();
   /** Serialises appends: each hash needs the previous one. */
@@ -185,6 +192,15 @@ export class MockGatewayApi implements GatewayApi {
       createdAt: now,
       updatedAt: now,
     };
+    this.orders.push(order);
+    for (const e of eventsForOrder(order)) void this.append(e);
+    await this.tail;
+    return structuredClone(order);
+  }
+
+  async submitWeek(lines: WeekOrder[], text: string) {
+    const now = new Date().toISOString();
+    const order = weekOrder(`ord-${this.nextOrder++}`, lines, text, now);
     this.orders.push(order);
     for (const e of eventsForOrder(order)) void this.append(e);
     await this.tail;

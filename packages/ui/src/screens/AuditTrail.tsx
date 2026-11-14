@@ -53,7 +53,7 @@ function AgentTable({ events }: { events: AuditEvent[] }) {
     agents.set(id, row);
   }
   return (
-    <div className="table-wrap">
+    <div className="card table-wrap">
       <table>
         <caption>Agents and mandates</caption>
         <thead>
@@ -86,8 +86,12 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
 
   return (
     <>
-      <h1>Audit trail</h1>
-      <div className="tabs" role="tablist" aria-label="Audit views">
+      <header className="page-head page-head-row">
+        <div>
+          <h1>Audit trail</h1>
+          <p className="lead">Every offer, order and decision, chained by SHA-256 hashes.</p>
+        </div>
+        <div className="tabs" role="tablist" aria-label="Audit views">
         {TABS.map((t) => (
           <button
             key={t.scope}
@@ -101,10 +105,11 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
             {t.label}
           </button>
         ))}
-      </div>
+        </div>
+      </header>
 
       <div id="audit-panel" role="tabpanel" aria-labelledby={`tab-${scope}`}>
-        <p className="lead">{tab.intro}</p>
+        <p className="muted">{tab.intro}</p>
         {error && (
           <p className="error" role="alert">
             Could not load the audit trail. {error}
@@ -114,6 +119,10 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
           <>
             <ChainStatus events={events} />
             {scope === 'aimo' && <AgentTable events={events} />}
+            <section className="card" aria-labelledby="events-title">
+            <h2 id="events-title" className="card-title">
+              Events, newest first
+            </h2>
             <ol className="events" reversed>
               {[...events].reverse().map((e) => (
                 <li key={e.seq}>
@@ -134,6 +143,7 @@ export function AuditTrail({ api }: { api: GatewayApi }) {
                 </li>
               ))}
             </ol>
+            </section>
             {api instanceof MockGatewayApi && events.length > 1 && (
               <p>
                 <button type="button" className="btn" onClick={() => void api.tamper(events[1]!.seq)}>

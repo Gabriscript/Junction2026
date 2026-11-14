@@ -7,6 +7,9 @@ import { addDays, extractNeed, todayIso, type LLMProvider } from './llm.js';
 import { packMath, packSizeOf, type PackPlan } from './packMath.js';
 import { lineCents, planFill, toCents, type PlanLine, type Usable } from './substitute.js';
 import { offerIsCurrent, verifyOffer, type Trust } from './verify.js';
+import { qty, unusualQuantity, type Usual } from './quantity.js';
+
+export { unusualQuantity, type Usual } from './quantity.js';
 
 export interface TraceStep {
   action: string;
@@ -65,29 +68,7 @@ export interface AgentResult {
   warnings?: string[];
 }
 
-export interface Usual {
-  quantity: number;
-  unit: StructuredNeed['unit'];
-  period: string; // "week", "month"
-}
-
 const SHORTLIST_SIZE = 5;
-// shortcut: a fixed ratio; a real one would come from the customer's order variance
-const UNUSUAL_RATIO = 3;
-const qty = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 2 });
-
-/** A warning when the need is far from the usual order: an extra or missing zero ("5000" or "50" for "500") is the classic slip. */
-export function unusualQuantity(need: Pick<StructuredNeed, 'quantity' | 'unit' | 'productQuery'>, usual: Usual | undefined): string | undefined {
-  if (!usual || usual.unit !== need.unit) return undefined;
-  const high = need.quantity >= UNUSUAL_RATIO * usual.quantity;
-  if (!high && need.quantity * UNUSUAL_RATIO > usual.quantity) return undefined;
-  const typo = high ? need.quantity / 10 : need.quantity * 10;
-  const plausibleTypo = typo >= usual.quantity / 2 && typo <= usual.quantity * 2;
-  if (!high && !plausibleTypo) return undefined; // a small top-up is normal: only a missing zero is worth asking about
-  const hint = plausibleTypo ? `did you mean ${qty(typo)} ${need.unit}?` : 'please confirm the quantity';
-  const difference = `${qty(Math.abs(need.quantity - usual.quantity))} ${need.unit} ${high ? 'more' : 'less'}`;
-  return `${qty(need.quantity)} ${need.unit} of ${need.productQuery} is ${difference} than usual (${qty(usual.quantity)} ${need.unit} a ${usual.period}): ${hint}`;
-}
 // money is integer euro cents (toCents, lineCents in substitute.ts), formatted only at the edge
 const eur = (cents: number) => `€${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
