@@ -51,6 +51,32 @@ for (const line of plan.lines) {
 - `plan.neededBy === null` → use the next delivery date and keep the assumption visible.
 - Allergen filtering stays in the mandate + gateway (`ALLERGEN_CONFLICT` is always blocked); the recipe step does **not** adapt recipes to allergens (next-steps slide).
 
+## Whole menus: `planMenu` (added 2026-11-14)
+A reservation usually has several courses. `planMenu(text)` reads servings, meal and date once, splits the dishes on commas, semicolons, colons and new lines, strips course words (appetizer/antipasto, main/primo, dessert/dolce), plans each dish and **merges identical ingredients** across dishes into one shopping-list line (`usedIn` says which dishes need it).
+
+```ts
+import { planMenu } from '@junction/agent';
+const menu = await planMenu(
+  'tomorrow dinner, 10 people, appetizer bruschette pomodorini mozzarella origano, fusilli al pesto, gelato vaniila e cioccolato dessert',
+);
+// menu.neededBy = tomorrow, menu.servings = 10, menu.dishes = 3 (with course), menu.lines = shopping list
+// menu.unknownDishes = dishes nobody could plan → UI asks the chef to list ingredients (the rest still gets planned)
+```
+
+| line | total | used in |
+|---|---|---|
+| ciabatta | 0.6 KG | bruschette |
+| tomato (pomodorini) | 0.6 KG | bruschette |
+| mozzarella | 0.4 KG | bruschette |
+| oregano | 0.005 KG | bruschette |
+| fusilli | 1 KG | fusilli al pesto |
+| pesto | 0.5 KG | fusilli al pesto |
+| parmesan | 0.15 KG | fusilli al pesto |
+| vanilla ice cream | 0.7 L | gelato (typo "vaniila" recognised) |
+| chocolate ice cream | 0.7 L | gelato |
+
+Demo table now has: bruschette, fusilli al pesto, gelato (any of vanilla / chocolate / strawberry / pistachio, typo-tolerant), spaghetti al pesto, salmon with potatoes, oat porridge. Use `planMenu` for the chef request box; `planDish` stays for single dishes.
+
 ## Demo idea
 Scene "chef": type *Dinner, spaghetti al pesto per 10 persone* → plan with assumptions → signed offers → auto-approved. Variant for the hospital: *porridge for 30 tomorrow* with a nut-free / lactose-free mandate.
 
@@ -66,4 +92,5 @@ Scene "chef": type *Dinner, spaghetti al pesto per 10 persone* → plan with ass
 - `dish-table.ts` — fallback demo recipes
 - `suggesters.ts` — `tableSuggester`, `anthropicSuggester`, `chainSuggesters`, `defaultSuggester`
 - `plan.ts` — `planDish()`
-- `recipe.test.ts` — 6 tests
+- `menu.ts` — `planMenu()` for whole menus / reservations
+- `recipe.test.ts`, `menu.test.ts` — 10 tests
