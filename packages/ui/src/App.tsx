@@ -112,6 +112,8 @@ export function App({ api }: { api: GatewayApi }) {
   const current = nav.find((item) => item.route === section) ?? { route: 'chat', label: 'Chat', short: 'Chat', icon: 'request' as IconName };
   const who = view === 'aimo' ? 'Valio Aimo' : KITCHEN;
   const demo = api instanceof MockGatewayApi;
+  const hasBackend = !!import.meta.env.VITE_GATEWAY_URL; // a build without a backend (local mock) has nothing to switch to
+  const goLive = () => window.location.assign(`${window.location.pathname}?live${window.location.hash}`);
 
   const tourStep = (step: TourStep) => {
     setTourAt(step);
@@ -182,6 +184,7 @@ export function App({ api }: { api: GatewayApi }) {
             <div className="side-note">
               <strong>Demo mode</strong>
               <p>Mock gateway with synthetic data. Nothing is ordered for real.</p>
+              {api instanceof MockGatewayApi && api.liveFailed && <p>The real backend did not answer, so this is the demo.</p>}
             </div>
           )}
         </aside>
@@ -218,6 +221,14 @@ export function App({ api }: { api: GatewayApi }) {
               <span className="who-name">{who}</span>
             </p>
           </header>
+          {demo && hasBackend && (
+            <p className="demo-bar" role="status">
+              <span>Demo: synthetic data, nothing is ordered for real.</span>
+              <button type="button" className="btn primary" onClick={goLive}>
+                Use the real product
+              </button>
+            </p>
+          )}
           <main id="main" tabIndex={-1} ref={main}>
             {orderId ? (
               <OrderDetail api={api} orderId={orderId} />
