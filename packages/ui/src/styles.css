@@ -566,6 +566,7 @@ a.brand, .side .brand a { min-height: 44px; }
 :root { --scrim: oklch(24.6% 0.026 231 / 0.55); }
 .tour-btn { flex: none; gap: 8px; padding: 0 14px; }
 .tour-btn + .who { margin-left: 0; }
+.demo-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 0.875rem; color: var(--ink-soft); }
 .tour { position: fixed; inset: 0; z-index: 20; pointer-events: none; } /* the page stays clickable: Accept substitute, the tamper button */
 .tour-dim { background: var(--scrim); }
 .tour-spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 200vmax var(--scrim); pointer-events: none; }

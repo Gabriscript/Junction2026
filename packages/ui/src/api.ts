@@ -138,6 +138,8 @@ export class MockGatewayApi implements GatewayApi {
   /** Serialises appends: each hash needs the previous one. */
   private tail: Promise<void> = Promise.resolve();
   private nextOrder = 1004;
+  /** Set when ?live was asked but the backend did not answer: the demo says so instead of looking like the real thing. */
+  liveFailed = false;
 
   constructor() {
     for (const order of this.orders) {
@@ -266,6 +268,8 @@ export async function createApi(): Promise<GatewayApi> {
     await Promise.race([live.listOrders(), new Promise((_, reject) => setTimeout(() => reject(new Error('gateway timeout')), 8000))]);
     return live;
   } catch {
-    return new MockGatewayApi();
+    const mock = new MockGatewayApi();
+    mock.liveFailed = true;
+    return mock;
   }
 }

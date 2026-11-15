@@ -319,6 +319,26 @@ test('the Demo tour button is on the live build too, and ?demo=tour opens the to
   window.history.pushState(null, '', '/');
 });
 
+test('demo mode offers "Use the real product" when the build has a backend: it reloads on ?live; a dead backend is stated', async () => {
+  vi.stubEnv('VITE_GATEWAY_URL', '/');
+  const assign = vi.fn();
+  vi.stubGlobal('location', { ...window.location, pathname: '/', hash: '#/new', search: '', assign });
+  const view = render(<App api={new MockGatewayApi()} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Use the real product/ }));
+  expect(assign).toHaveBeenCalledWith('/?live#/new');
+  view.unmount();
+
+  const dead = new MockGatewayApi();
+  dead.liveFailed = true;
+  const deadView = render(<App api={dead} />);
+  expect(await screen.findByText(/real backend did not answer/)).toBeTruthy();
+  deadView.unmount();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  render(<App api={new MockGatewayApi()} />);
+  expect(screen.queryByRole('button', { name: /Use the real product/ })).toBeNull(); // no backend in the build: nothing to switch to
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
